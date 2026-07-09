@@ -1,0 +1,17 @@
+[element]
+name        = "review"
+description = "Review a diff or PR for bugs, security, and maintainability"
+version     = "1.0.0"
+allowed-tools = "Read, Grep, Glob, Bash"
+
+[tags.brief]
+description = "Top 3 findings only, one line each"
+overrides   = ["length", "depth"]
+
+[tags.security]
+description = "Focus on injection, secrets, authz, deserialization"
+overrides   = ["focus"]
+
+[tags.thorough]
+description = "Full checklist including maintainability and style"
+overrides   = ["depth", "focus"]
