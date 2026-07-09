@@ -1,0 +1,17 @@
+# Optional registry for the converted library.
+# Elements are discovered by filesystem scan; this file is metadata only.
+# Shared tags below are referenced by more than one element.
+
+[cue]
+version = "0.2.0"
+source = "converted from upstream 2026 sources (see library/README.md)"
+
+[[tags]]
+name = "Brief"
+description = "Constrain output length to one paragraph or equivalent"
+source = "tags/brief.md"
+
+[[tags]]
+name = "Formal"
+description = "Apply formal register and professional language conventions"
+source = "tags/formal.md"
