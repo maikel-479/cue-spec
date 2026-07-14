@@ -61,6 +61,60 @@ CLIs), harness cues must also be exposed as **callable tools**, not just message
 syntax. A `[Mode: Plan]` with `class: harness` should map to a `set_mode` tool the
 agent can invoke. This is required for Cue to be agent-first, not human-only.
 
+### Dual-surface pattern
+
+Every `class: harness` element ships **two** invocation surfaces:
+
+| Surface | Example | Who uses it |
+|---|---|---|
+| Colon syntax (message-initial) | `:mode plan` | Human typing in the prompt |
+| Callable tool | `set_mode(mode: "plan")` | Agent mid-workflow via tool use |
+
+Both reach the same harness handler. The colon syntax is sugar; the tool schema is
+the programmatic interface.
+
+### Worked example: `[Mode: Plan]`
+
+**As colon syntax:**
+```
+:mode plan
+```
+
+**As a callable tool (schema the agent sees):**
+```json
+{
+  "name": "set_mode",
+  "description": "Switch the harness execution mode",
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "mode": {
+        "type": "string",
+        "enum": ["plan", "act", "review"],
+        "description": "The execution mode to activate"
+      }
+    },
+    "required": ["mode"]
+  }
+}
+```
+
+The agent invokes `set_mode(mode: "plan")` via its tool-use mechanism. The harness
+router intercepts it, applies the mode change, and the model never sees directive
+syntax — same outcome as `:mode plan`, different entry point.
+
+### Registration requirement
+
+Every harness element's `.toml` must declare both surfaces:
+
+```toml
+[element]
+name    = "mode"
+class   = "harness"
+handler = "harness::set_mode"
+# tool schema is derived from the handler's parameter spec
+```
+
 ## Implementation sketch (OpenCode-style hook)
 
 ```ts
