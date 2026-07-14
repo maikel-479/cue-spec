@@ -69,7 +69,8 @@ The agent ecosystem is already fragmenting around skill folders (`.claude`,
 
 ## Validation
 
-At index-build time, lint frontmatter against markdown bodies:
-- Every `[tags.*]` must have a matching `## Tag:` subtitle.
-- Every `## Tag:` subtitle must correspond to a declared tag (or a shared include).
-- Mismatches are build-time warnings, surfaced to the user — never silent gaps.
+At index-build time, the harness lints frontmatter against markdown bodies —
+described canonically in [sectional-tracing.md](sectional-tracing.md#validation).
+Every `[tags.*]` must have a matching `## Tag:` subtitle, and every `## Tag:`
+subtitle must correspond to a declared tag. Mismatches are build-time warnings,
+surfaced to the user — never silent gaps.

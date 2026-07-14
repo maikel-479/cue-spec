@@ -21,8 +21,9 @@ character for `:` (system nav) and `/` (alias).
 ### Resolver
 For each Cue directive:
 1. Look up the element in the registry.
-2. Resolve the tag chain left-to-right, tracing each tag's section via the byte-offset
-   index ([sectional-tracing.md](sectional-tracing.md)).
+2. Resolve the tag chain left-to-right, tracing each tag's section via the
+   [sectional-tracing mechanism](sectional-tracing.md) (header-based key, byte-offset
+   index as cached derived artifact).
 3. Apply `overrides` conflict resolution ([elements-and-tags.md](elements-and-tags.md)).
 4. If the directive has a scope (`{...}`), resolve the referenced chunk(s)
    ([scoped-directives.md](scoped-directives.md)).

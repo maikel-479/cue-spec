@@ -1,6 +1,8 @@
 # Sectional Tracing
 
-Why dispatch cost is independent of how many tags an element has.
+Why dispatch cost is independent of how many tags an element has, and the single
+canonical description of how section discovery, validation, and runtime extraction
+work. Other docs reference this page — they do not re-describe the mechanism.
 
 ## The problem with whole-body loading
 
@@ -13,10 +15,16 @@ which the model will never use this turn.
 Cue does not load the file. **It traces the tag, then extracts only the matching
 section.**
 
-## The mechanism
+## The mechanism — two phases
+
+Sectional tracing has two phases that run at different times: **validation** (at
+index-build time, once per file change) and **tracing** (at dispatch time, once per
+invocation). They share one canonical key: the `## Tag:` header.
+
+### Phase 1: Validation (index-build time)
 
 An element's markdown body is a sequence of named sections, each anchored by a
-header that corresponds exactly to a tag declared in the frontmatter:
+`## Tag:` header that corresponds to a tag declared in the frontmatter:
 
 ```markdown
 ## Default Behavior
@@ -29,9 +37,16 @@ header that corresponds exactly to a tag declared in the frontmatter:
 ...
 ```
 
-At registry-load time (once, cached, invalidated only on file-mtime change — never
-re-parsed per dispatch) the harness builds a **section index**: a map from tag name
-to byte-offset range within the file.
+At index-build time (triggered by file-mtime change), the harness builds a
+**section index** by scanning for `## Tag:` headers. This is the same step that
+validates the element: every tag declared in `[tags.*]` must have a matching
+`## Tag:` subtitle, and every `## Tag:` subtitle must correspond to a declared tag.
+A mismatch in either direction is a build-time warning — see
+[Validation](#validation) below.
+
+### Phase 2: Tracing (dispatch time)
+
+The section index maps each tag name to a byte-offset range within the file:
 
 ```json
 {
@@ -47,6 +62,11 @@ to byte-offset range within the file.
 When `[Code: rust]` fires, the dispatcher seeks directly to byte 4120 and reads
 exactly 1190 bytes. The Go, Debug, and other sections are never opened, never read
 off disk, never tokenized.
+
+The byte-offset index is a **cached, derived artifact** — invalidated on file-mtime
+change and rebuilt by re-scanning `## Tag:` headers. The header is the canonical
+key; the offset is an optimization. If the cache is stale (file changed since last
+build), the harness rebuilds it before tracing.
 
 ## Matching rule
 
@@ -110,11 +130,17 @@ Tracing inverts this: **the cost of a dispatch is a function of the tags request
 never a function of how many tags exist.** Grow `Code` to fifty languages without a
 single existing `[Code: rust]` call paying one extra token for it.
 
-## Validation, not silent failure
+## Validation
 
-At index-build time, lint the frontmatter against the markdown: every tag declared in
-`[tags.*]` must have a matching subtitle, and every `## Tag: X` subtitle must
-correspond to a declared tag. A mismatch in either direction is a build-time warning,
-not a runtime silent gap. Let something continuously check that the specification and
-the content agree, rather than discovering drift when an agent silently gets the
-wrong instructions.
+At index-build time, lint the frontmatter against the markdown body — this is
+[Phase 1](#phase-1-validation-index-build-time) of the mechanism above:
+
+- Every tag declared in `[tags.*]` must have a matching `## Tag:` subtitle.
+- Every `## Tag:` subtitle must correspond to a declared tag (or a shared include
+  via `[[uses]]`).
+- A mismatch in either direction is a build-time warning, not a runtime silent gap.
+- This validation is **the same step** that builds the byte-offset index — no
+  separate pass required.
+
+For cross-element consistency (shared tags, version drift), see
+[shared-tags.md](shared-tags.md) and [registry-and-discovery.md](registry-and-discovery.md).
