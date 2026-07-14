@@ -1,0 +1,15 @@
+{
+  "name": "cue-spec",
+  "version": "0.2.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "hook": "node --experimental-specifier-resolution=node src/index.js",
+    "test": "node --test src/**/*.test.js"
+  },
+  "devDependencies": {
+    "typescript": "^5.8.0",
+    "@types/node": "^22.0.0"
+  }
+}
