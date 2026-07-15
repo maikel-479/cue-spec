@@ -2,6 +2,11 @@
 
 **A directive notation for AI agents — and a colon tier for harness navigation.**
 
+> **Note on naming:** This project is unrelated to
+> [cue-lang/CUE](https://cuelang.org/), a configuration language for Kubernetes
+> and cloud-native tooling. "Cue" here refers to agent directive notation, not data
+> constraints.
+
 Cue gives users a compact, readable syntax to trigger agent actions with precision,
 and a clean separation between *content-affecting behavior* and *harness/UI state*.
 
