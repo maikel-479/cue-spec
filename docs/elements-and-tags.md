@@ -31,11 +31,17 @@ Each tag declares the behavioral dimensions it governs, drawn from a **fixed enu
 (not free text):
 
 ```
-tone, register, length, depth, structure, format, voice, vocabulary, mode, output
+tone, register, length, depth, structure, format, voice, vocabulary, mode, output,
+process, scope, language, sdk, idioms
 ```
 
 Free-text dimensions make cross-author composition impossible to validate. The enum
-makes conflict detection mechanical.
+makes conflict detection mechanical. Dimensions are grouped by what they govern:
+
+- **Voice/presentation:** `tone`, `register`, `voice`, `vocabulary`, `idioms`
+- **Shape/length:** `length`, `depth`, `structure`, `format`
+- **Execution:** `mode`, `output`, `process`, `scope`
+- **Context:** `language`, `sdk`
 
 ```toml
 [tags.human]
@@ -72,6 +78,28 @@ only shared dimension (`tone` is Human-only; `length` is Brief-only) has no conf
 
 Result: casual tone, formal register — "professional but warm." Documented, not
 surprising, because the conflict was resolved by position.
+
+### Worked example: 3-tag conflict
+
+`[Answer: Human > Technical > Brief]`:
+
+| Dimension | Human | Technical | Brief | Winner |
+|---|---|---|---|---|
+| `tone` | ✓ | | | Human |
+| `structure` | ✓ | | | Human |
+| `voice` | ✓ | | | Human |
+| `vocabulary` | | ✓ | | Technical |
+| `idioms` | | ✓ | | Technical |
+| `length` | | | ✓ | Brief |
+
+Result: human tone, structure, and voice; technical vocabulary and idioms; one
+paragraph maximum. Human and Technical share no overlapping dimensions, so there is
+no conflict to resolve — the composition is clean. Brief is orthogonal to both (it
+only governs `length`).
+
+This is the common case: well-designed tags compose without conflict because they
+govern different dimensions. Conflicts only arise when two tags claim the *same*
+dimension (e.g., `[Answer: Human > Casual]` — both claim `tone`; leftmost wins).
 
 ### Conflict observability
 

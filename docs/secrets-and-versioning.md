@@ -16,17 +16,65 @@ name = "postgres"
 inputs = ["PG_HOST", "PG_USER", "PG_PASSWORD"]
 ```
 
-At first use, the harness prompts once and stores the value in its own secret store
-(never written to the body file, never committed). Subsequent dispatches read from
-the store. The body references the variable by name; the resolver substitutes it at
-dispatch time, after tracing, before injection.
+### v2 backend: environment-variable passthrough
+
+For v2, secrets are stored as **environment variables** in a per-project `.env`
+file. This is the simplest portable backend — no OS keychain dependency, no encryption
+library, works everywhere `dotenv` works.
+
+**Storage path:**
+```
+~/.cue/secrets/<project-slug>/.env
+```
+
+Where `<project-slug>` is the directory name of the project root (e.g., if you're
+working in `/home/user/my-app`, the slug is `my-app`).
+
+**File format:** standard `KEY=VALUE` lines, one per secret:
+```
+PG_HOST=localhost
+PG_USER=admin
+PG_PASSWORD=s3cret
+```
+
+**Key-naming scheme:** `{ELEMENT}_{INPUT_NAME}` — uppercase, underscore-separated.
+The element prefix avoids collisions when two elements declare the same input name.
+If the element name is already uppercase (e.g., `PG_HOST` inside the `postgres`
+element), use the bare input name (the element namespace is implicit in the file's
+location).
+
+### Lifecycle
+
+1. **First dispatch:** the element declares `inputs = ["PG_HOST", "PG_USER"]`.
+   Neither is in the `.env` file. The harness prompts the user once per missing
+   input, then writes them to `~/.cue/secrets/<project>/.env`.
+2. **Subsequent dispatches:** the harness reads from the `.env` file. No prompt.
+3. **Substitution:** the body references variables by name (`$PG_HOST`). The
+   resolver substitutes from the store **after tracing, before injection** — the
+   variable never appears in the element file itself.
+4. **Revocation:** delete the `.env` file or remove the line. Next dispatch prompts
+   again.
+
+### Example
 
 ```
 [Query: Analyze]{@db/schema.sql}
 ```
 
-The `postgres` element's traced section may contain `$PG_HOST` — substituted from the
-secret store, never persisted in plaintext in the element file.
+The `postgres` element's traced section contains `$PG_HOST` — substituted from
+`~/.cue/secrets/my-app/.env`, never persisted in plaintext in the element file.
+
+### Future backends (not v2)
+
+| Backend | When to use | Notes |
+|---|---|---|
+| OS keychain (macOS Keychain, `secret-service`) | Shared machines, CI/CD | Requires platform-specific bindings |
+| Encrypted local file (age, gpg) | Offline-first, air-gapped | Requires crypto dependency |
+| Vault/KMS integration | Enterprise, team-shared | Requires network + auth |
+
+The `.env` backend is deliberately simple. It proves the lifecycle (prompt → store →
+substitute) without requiring any platform-specific code. Swapping backends later is
+a one-interface change — the rest of the spec is backend-agnostic.
 
 ## 2. Version pinning
 
