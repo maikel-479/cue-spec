@@ -11,9 +11,11 @@ and a clean separation between *content-affecting behavior* and *harness/UI stat
 /commit                                   ← alias, expands to [Commit]
 ```
 
-- **Status:** Draft v0.2
+- **Status:** Draft v0.3
 - **Transport:** compatible with the `SKILL.md` / agentskills.io layout — Cue is a
   *composition and scoping layer*, not a replacement for it.
+- **Reference implementation:** `src/` — a Claude Code `UserPromptSubmit` hook that
+  scans, resolves, and injects Cue directives. Tested against all library elements.
 - **License:** MIT
 
 ---
@@ -90,3 +92,35 @@ Not everything is a Cue. A Cue is right when the action is repeatable, has genui
 variants, and is non-obvious. If you'd need a Cue definition shorter than the
 instruction itself — just write the instruction. See the element creation checklist
 in [docs/elements-and-tags.md](docs/elements-and-tags.md).
+
+---
+
+## Reference implementation
+
+The `src/` directory contains a working Claude Code `UserPromptSubmit` hook:
+
+| Module | What it does |
+|---|---|
+| `src/scanner.ts` | Finds `[Element: Tag]`, `{@path}`, `:command` — skips fenced code blocks |
+| `src/resolver.ts` | Discovers elements, parses TOML + MD, traces sections, resolves overrides |
+| `src/index.ts` | Hook entry point — reads JSON from stdin, outputs `additionalContext` |
+
+**Run tests:** `npx tsc && node --test dist/*.test.js`
+
+**Use as a Claude Code hook:** add to `.claude/settings.json`:
+```json
+{
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node /path/to/cue-spec/dist/index.js"
+          }
+        ]
+      }
+    ]
+  }
+}
+```
