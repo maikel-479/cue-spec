@@ -1,22 +1,29 @@
 # Dispatch Architecture
 
-The dispatcher is a single interception point at message ingress. The model never
-sees directive syntax.
+The dispatcher is a single interception point at message ingress. The ideal: the
+model never sees directive syntax. The reality for v2: the model *does* see the
+syntax, but the resolved instructions are injected alongside it via
+`additionalContext`. See [Harness capability matrix](#harness-capability-matrix) for
+which harnesses achieve full syntax hiding vs. injection-only.
 
 ## Pipeline
 
 ```
-stdin → [scanner] → [resolver] → [injector] → [stripped message → model]
+stdin → [scanner] → [resolver] → [injector] → [message + injected context → model]
                  ↓
             [harness router]   (class: harness → native handler; model never sees it)
 ```
 
+The Stripper stage (removing directive syntax from the user message) is only
+achievable if the target hook can rewrite the outgoing prompt text. As of v2,
+no shipped hook supports this. See [Stripper](#stripper) below.
+
 ## Stages
 
 ### Scanner
-Runs once at message ingress (the `beforeTurn` hook). Finds every `[...]` directive
-anywhere in the message — position-agnostic. Also checks the message-initial
-character for `:` (system nav) and `/` (alias).
+Runs once at message ingress (the `UserPromptSubmit` hook). Finds every `[...]`
+directive anywhere in the message — position-agnostic. Also checks the
+message-initial character for `:` (system nav) and `/` (alias).
 
 ### Resolver
 For each Cue directive:
@@ -32,12 +39,39 @@ For each Cue directive:
 
 ### Injector
 Attaches the resolved, traced text to the model's context — as a system/augmentation
-block. If the directive was scoped, the text attaches to the referenced chunk's slot,
-not globally.
+block via `additionalContext`. If the directive was scoped, the text attaches to the
+referenced chunk's slot, not globally.
+
+**Claude Code implementation:** the hook's stdout (or JSON `additionalContext`)
+is injected as a system reminder that Claude reads without a visible transcript
+entry. The original prompt text remains unchanged — the model sees both the
+directive syntax and the injected instructions.
 
 ### Stripper
-Removes the `[...]` (and `:` / `/`) syntax from the user message before forwarding to
-the model. The model sees only clean natural language plus the compiled instructions.
+
+**Status: not achievable in v2 with Claude Code.**
+
+The Stripper stage removes `[...]` syntax from the user message before forwarding to
+the model. This requires the target hook to *rewrite* the outgoing prompt text.
+Claude Code's `UserPromptSubmit` **cannot replace the prompt** — it only injects
+`additionalContext` alongside the untouched original (confirmed via
+[docs.anthropic.com/en/docs/claude-code/hooks](https://docs.anthropic.com/en/docs/claude-code/hooks)):
+> `UserPromptSubmit`: can't replace the prompt; it only injects `additionalContext`
+> alongside it
+
+OpenCode's equivalent hook (`chat.request.before`) is still an open, unmerged
+feature request ([#19425](https://github.com/anomalyco/opencode/issues/19425)).
+
+**v2 behavior:** the model sees the raw directive syntax in the prompt *plus* the
+resolved instructions injected via `additionalContext`. This works in practice
+because: (a) the injected context is authoritative and the model follows it, (b)
+the directive syntax is unambiguous natural-language-like text that doesn't confuse
+the model, and (c) `class: harness` directives never reach the model at all (they
+short-circuit in the harness router).
+
+**Future:** if a hook gains prompt-rewriting capability, the Stripper stage activates
+and hard rule #1 is fully achieved. The spec is designed so the Stripper is a
+drop-in addition, not a structural change.
 
 ### Harness router
 Intercepts `class: harness` directives and runs native handlers. `[Mode: Plan]` never
@@ -45,9 +79,11 @@ touches the model.
 
 ## Hard rules
 
-1. **The model never sees directive syntax.** This keeps Cue scalable: the model is
-   ignorant of Cue, so Cue can grow arbitrarily complex at zero model-comprehension
-   cost. The harness compiles it away.
+1. **The model should never see directive syntax** (aspirational, harness-dependent).
+   With Claude Code's `UserPromptSubmit`, the model *does* see the syntax in v2,
+   but the resolved instructions are injected via `additionalContext` and are
+   authoritative. `class: harness` directives never reach the model regardless.
+   Full syntax hiding requires a hook with prompt-rewriting capability.
 2. **Scanner and model are independent.** A bug in Cue parsing cannot corrupt a normal
    chat, and vice versa. The `:` branch short-circuits before the Cue branch runs.
 3. **Unknown is an error, never silent.** Unregistered element or tag → explicit error.
@@ -115,22 +151,49 @@ handler = "harness::set_mode"
 # tool schema is derived from the handler's parameter spec
 ```
 
-## Implementation sketch (OpenCode-style hook)
+## Harness capability matrix
+
+| Capability | Claude Code (`UserPromptSubmit`) | OpenCode (`chat.request.before`) |
+|---|---|---|
+| Inject `additionalContext` | Yes | Not shipped (open issue #19425) |
+| Rewrite/strip prompt text | **No** | Unknown (not shipped) |
+| Block prompt | Yes (exit code 2) | Unknown |
+| Fire before model call | Yes | Would be, if shipped |
+
+## Implementation sketch (Claude Code `UserPromptSubmit`)
 
 ```ts
-// beforeTurn hook
-export async function beforeTurn(msg: string): Promise<DispatchResult> {
-  if (msg.trimStart().startsWith(":")) {
-    return harnessRoute(msg);          // short-circuit, model never called
-  }
-  const directives = scan(msg);        // find all [...]
-  if (directives.length === 0) {
-    return { message: msg, context: [] };
-  }
-  const injections = directives.map(resolve);   // trace + compose
-  return {
-    message: strip(msg, directives),            // clean natural language
-    context: injections,                        // attached to model
-  };
+// UserPromptSubmit hook — reads JSON from stdin, writes JSON to stdout
+import { scan } from "./scanner";
+import { resolve } from "./resolver";
+
+const input = JSON.parse(await readStdin());
+const msg: string = input.prompt;
+
+// Short-circuit: colon-tier system nav
+if (msg.trimStart().startsWith(":")) {
+  const result = harnessRoute(msg);
+  writeStdout(JSON.stringify(result));
+  process.exit(0);
 }
+
+// Scan for [...], {@path}, {#id}, {$last}
+const directives = scan(msg);
+if (directives.length === 0) {
+  process.exit(0);  // no directives, pass through unchanged
+}
+
+// Resolve each directive: registry lookup → trace → overrides → scope
+const injections = directives
+  .filter(d => d.element.class !== "harness")  // harness handled separately
+  .map(resolve);
+
+// Inject resolved text as additionalContext (original prompt stays intact)
+writeStdout(JSON.stringify({
+  hookSpecificOutput: {
+    hookEventName: "UserPromptSubmit",
+    additionalContext: injections.map(i => i.text).join("\n\n"),
+  },
+}));
+process.exit(0);
 ```
