@@ -219,3 +219,90 @@ export function resolve(
 function camelToKebab(s: string): string {
   return s.replace(/([a-z0-9])([A-Z])/g, "$1-$2").toLowerCase();
 }
+
+export function validateVersionPin(version: string): string | null {
+  if (!version) return null;
+  const semverRe = /^\d+\.\d+\.\d+(-[a-zA-Z0-9.]+)?(\+[a-zA-Z0-9.]+)?$/;
+  if (!semverRe.test(version)) {
+    return `Malformed version pin: '${version}' is not a valid semver range`;
+  }
+  return null;
+}
+
+export function detectCircularUses(
+  elements: Map<string, ElementDef>
+): string[] {
+  const errors: string[] = [];
+  const cycles = new Set<string>();
+  const visited = new Set<string>();
+
+  function dfs(name: string, path: string[], stack: Set<string>) {
+    if (stack.has(name)) {
+      const cycleStart = path.indexOf(name);
+      const cycleNodes = [...path.slice(cycleStart), name].sort();
+      const cycleKey = cycleNodes.join("→");
+      if (!cycles.has(cycleKey)) {
+        cycles.add(cycleKey);
+        errors.push(
+          `Circular [[uses]] detected: ${path.slice(cycleStart).join(" → ")} → ${name}`
+        );
+      }
+      return;
+    }
+    if (visited.has(name)) return;
+
+    visited.add(name);
+    stack.add(name);
+
+    const el = elements.get(name);
+    if (el) {
+      for (const use of el.uses) {
+        dfs(use.tag, [...path, name], stack);
+      }
+    }
+
+    stack.delete(name);
+  }
+
+  for (const [name] of elements) {
+    if (!name.includes("/")) {
+      dfs(name, [], new Set());
+    }
+  }
+
+  return errors;
+}
+
+export function detectConflictingReplace(
+  directives: CueDirective[]
+): string[] {
+  const errors: string[] = [];
+  const pathModes = new Map<string, Array<{ directive: CueDirective; mode: string }>>();
+
+  for (const d of directives) {
+    if (!d.scope) continue;
+    const key = d.scope.value;
+    if (!pathModes.has(key)) {
+      pathModes.set(key, []);
+    }
+    pathModes.get(key)!.push({ directive: d, mode: d.scope.mode });
+  }
+
+  for (const [filePath, entries] of pathModes) {
+    const replaceEntries = entries.filter((e) => e.mode === "replace");
+    if (replaceEntries.length > 1) {
+      errors.push(
+        `Conflicting 'replace' directives on '${filePath}': multiple directives use mode:replace on the same path`
+      );
+    } else if (replaceEntries.length === 1 && entries.length > 1) {
+      const other = entries.find((e) => e.mode !== "replace");
+      if (other) {
+        errors.push(
+          `Conflicting directives on '${filePath}': one uses mode:replace and another targets the same path`
+        );
+      }
+    }
+  }
+
+  return errors;
+}

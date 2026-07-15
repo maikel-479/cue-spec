@@ -1,7 +1,15 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { discoverElements, resolveSections, resolve } from "./resolver.js";
+import {
+  discoverElements,
+  resolveSections,
+  resolve,
+  validateVersionPin,
+  detectCircularUses,
+  detectConflictingReplace,
+} from "./resolver.js";
 import { scan } from "./scanner.js";
+import { CueDirective } from "./types.js";
 
 describe("Resolver", () => {
   const elements = discoverElements();
@@ -110,6 +118,208 @@ describe("Resolver", () => {
       const result = resolve(directives[0], elements);
       assert.ok(result, "should resolve");
       assert.ok(result.text.includes("Default Behavior"));
+    });
+  });
+
+  describe("edge case 2: conflicting replace directives", () => {
+    it("detects two replace directives on the same path", () => {
+      const directives: CueDirective[] = [
+        {
+          raw: "[Translate: Natural]{@README.md:replace}",
+          element: "Translate",
+          tags: ["Natural"],
+          scope: { type: "file", value: "README.md", mode: "replace" },
+          line: 1,
+          col: 0,
+        },
+        {
+          raw: "[Summarize: Brief]{@README.md:replace}",
+          element: "Summarize",
+          tags: ["Brief"],
+          scope: { type: "file", value: "README.md", mode: "replace" },
+          line: 2,
+          col: 0,
+        },
+      ];
+      const errors = detectConflictingReplace(directives);
+      assert.equal(errors.length, 1);
+      assert.ok(errors[0].includes("README.md"));
+      assert.ok(errors[0].includes("replace"));
+    });
+
+    it("detects replace + augment conflict on same path", () => {
+      const directives: CueDirective[] = [
+        {
+          raw: "[Translate: Natural]{@README.md:replace}",
+          element: "Translate",
+          tags: ["Natural"],
+          scope: { type: "file", value: "README.md", mode: "replace" },
+          line: 1,
+          col: 0,
+        },
+        {
+          raw: "[Answer: Technical]{@README.md}",
+          element: "Answer",
+          tags: ["Technical"],
+          scope: { type: "file", value: "README.md", mode: "augment" },
+          line: 2,
+          col: 0,
+        },
+      ];
+      const errors = detectConflictingReplace(directives);
+      assert.equal(errors.length, 1);
+      assert.ok(errors[0].includes("README.md"));
+      assert.ok(errors[0].includes("replace"));
+    });
+
+    it("no error for two augment directives on same path", () => {
+      const directives: CueDirective[] = [
+        {
+          raw: "[Answer: Technical]{@src/foo.rs}",
+          element: "Answer",
+          tags: ["Technical"],
+          scope: { type: "file", value: "src/foo.rs", mode: "augment" },
+          line: 1,
+          col: 0,
+        },
+        {
+          raw: "[Answer: Human]{@src/foo.rs}",
+          element: "Answer",
+          tags: ["Human"],
+          scope: { type: "file", value: "src/foo.rs", mode: "augment" },
+          line: 2,
+          col: 0,
+        },
+      ];
+      const errors = detectConflictingReplace(directives);
+      assert.equal(errors.length, 0);
+    });
+
+    it("no error for replace on different paths", () => {
+      const directives: CueDirective[] = [
+        {
+          raw: "[Translate: Natural]{@README.md:replace}",
+          element: "Translate",
+          tags: ["Natural"],
+          scope: { type: "file", value: "README.md", mode: "replace" },
+          line: 1,
+          col: 0,
+        },
+        {
+          raw: "[Translate: Natural]{@docs/guide.md:replace}",
+          element: "Translate",
+          tags: ["Natural"],
+          scope: { type: "file", value: "docs/guide.md", mode: "replace" },
+          line: 2,
+          col: 0,
+        },
+      ];
+      const errors = detectConflictingReplace(directives);
+      assert.equal(errors.length, 0);
+    });
+  });
+
+  describe("edge case 3: circular [[uses]] detection", () => {
+    it("detects a direct cycle (A → A)", () => {
+      const testElements = new Map<string, any>();
+      testElements.set("a", {
+        name: "a",
+        uses: [{ tag: "a", source: "" }],
+      });
+      const errors = detectCircularUses(testElements);
+      assert.equal(errors.length, 1);
+      assert.ok(errors[0].includes("Circular"));
+      assert.ok(errors[0].includes("a → a"));
+    });
+
+    it("detects an indirect cycle (A → B → A)", () => {
+      const testElements = new Map<string, any>();
+      testElements.set("a", {
+        name: "a",
+        uses: [{ tag: "b", source: "" }],
+      });
+      testElements.set("b", {
+        name: "b",
+        uses: [{ tag: "a", source: "" }],
+      });
+      const errors = detectCircularUses(testElements);
+      assert.equal(errors.length, 1);
+      assert.ok(errors[0].includes("Circular"));
+    });
+
+    it("detects a longer cycle (A → B → C → A)", () => {
+      const testElements = new Map<string, any>();
+      testElements.set("a", {
+        name: "a",
+        uses: [{ tag: "b", source: "" }],
+      });
+      testElements.set("b", {
+        name: "b",
+        uses: [{ tag: "c", source: "" }],
+      });
+      testElements.set("c", {
+        name: "c",
+        uses: [{ tag: "a", source: "" }],
+      });
+      const errors = detectCircularUses(testElements);
+      assert.equal(errors.length, 1);
+      assert.ok(errors[0].includes("Circular"));
+    });
+
+    it("no error for acyclic uses", () => {
+      const testElements = new Map<string, any>();
+      testElements.set("a", {
+        name: "a",
+        uses: [{ tag: "b", source: "" }],
+      });
+      testElements.set("b", {
+        name: "b",
+        uses: [{ tag: "c", source: "" }],
+      });
+      testElements.set("c", {
+        name: "c",
+        uses: [],
+      });
+      const errors = detectCircularUses(testElements);
+      assert.equal(errors.length, 0);
+    });
+
+    it("no error for elements with no uses", () => {
+      const testElements = new Map<string, any>();
+      testElements.set("a", { name: "a", uses: [] });
+      const errors = detectCircularUses(testElements);
+      assert.equal(errors.length, 0);
+    });
+  });
+
+  describe("edge case 4: malformed version pin", () => {
+    it("rejects non-semver version", () => {
+      const err = validateVersionPin("abc");
+      assert.ok(err !== null);
+      assert.ok(err!.includes("Malformed"));
+      assert.ok(err!.includes("abc"));
+    });
+
+    it("rejects partial semver", () => {
+      assert.ok(validateVersionPin("1.2") !== null);
+      assert.ok(validateVersionPin("1") !== null);
+    });
+
+    it("rejects semver with invalid prerelease", () => {
+      assert.ok(validateVersionPin("1.2.3-") !== null);
+      assert.ok(validateVersionPin("1.2.3-!!") !== null);
+    });
+
+    it("accepts valid semver", () => {
+      assert.equal(validateVersionPin("1.2.3"), null);
+      assert.equal(validateVersionPin("0.1.0"), null);
+      assert.equal(validateVersionPin("1.0.0-alpha.1"), null);
+      assert.equal(validateVersionPin("2.3.4+build.123"), null);
+    });
+
+    it("accepts null/empty (unpinned)", () => {
+      assert.equal(validateVersionPin(""), null);
+      assert.equal(validateVersionPin(null as any), null);
     });
   });
 });
