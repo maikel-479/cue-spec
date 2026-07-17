@@ -96,6 +96,26 @@ The `;` chains pure system commands in one line. It is *not* the `>` operator â€
 Expands to `[Commit]` before dispatch. Discovery sugar for content-affecting
 directives; inherits Cue's composition and scoping once resolved.
 
+## Exclusion zones
+
+Directive syntax is not parsed inside fenced code blocks (` ``` ` or ` ~~~ `) or
+inline code spans (single backticks). This lets users *mention* directives without
+*activating* them:
+
+```
+Use `[Answer: NoSlop]` when you want terse output.
+```
+
+The backtick convention is intentional â€” users naturally reach for inline code when
+talking *about* syntax. The scanner doesn't guess intent; it respects the exclusion
+boundary.
+
+| Zone | Syntax | Excludes |
+|---|---|---|
+| Fenced block | ` ``` ... ``` ` | All directives |
+| Fenced block | `~~~ ... ~~~` | All directives |
+| Inline code | `` ` ... ` `` | All directives |
+
 ## Malformed directives
 
 | Input | Behavior |

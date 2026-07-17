@@ -9,14 +9,15 @@ which harnesses achieve full syntax hiding vs. injection-only.
 ## Pipeline
 
 ```
-stdin → [scanner] → [resolver] → [injector] → [message + injected context → model]
-                 ↓
+stdin → [scanner] → [coalescer] → [resolver] → [substitutor] → [injector] → output
+                 ↓                       ↓
             [harness router]   (class: harness → native handler; model never sees it)
 ```
 
-The Stripper stage (removing directive syntax from the user message) is only
-achievable if the target hook can rewrite the outgoing prompt text. As of v2,
-no shipped hook supports this. See [Stripper](#stripper) below.
+The Coalescer and Substitutor stages are new in 1.2b. The Stripper stage (removing
+directive syntax from the user message) is only achievable if the target hook can
+rewrite the outgoing prompt text. As of v2, no shipped hook supports this. See
+[Stripper](#stripper) below.
 
 ## Stages
 
@@ -25,10 +26,17 @@ Runs once at message ingress (the `UserPromptSubmit` hook). Finds every `[...]`
 directive anywhere in the message — position-agnostic. Also checks the
 message-initial character for `:` (system nav) and `/` (alias).
 
+### Coalescer
+Groups directives by **(element name, scope target)** before the Resolver runs.
+Multiple occurrences of the same element with the same scope target collapse into
+one directive with merged tags (left-to-right by first appearance). See
+[elements-and-tags.md](elements-and-tags.md) § Same-element multi-occurrence
+coalescing.
+
 ### Resolver
-For each Cue directive:
+For each coalesced Cue directive:
 1. Look up the element in the registry.
-2. Resolve the tag chain left-to-right, tracing each tag's section via the
+2. Resolve the merged tag chain left-to-right, tracing each tag's section via the
    [sectional-tracing mechanism](sectional-tracing.md) (header-based key, byte-offset
    index as cached derived artifact).
 3. Apply `overrides` conflict resolution ([elements-and-tags.md](elements-and-tags.md)).
@@ -36,6 +44,15 @@ For each Cue directive:
    ([scoped-directives.md](scoped-directives.md)).
 5. If `class: harness`, route to the harness handler instead of building model
    context.
+
+### Substitutor
+If the harness supports prompt rewriting, replaces `[Element: Tags]` syntax in the
+user message with the tag's `inline` field text. If any tag in a composed chain
+lacks `inline`, the chain is left unsubstituted. See
+[elements-and-tags.md](elements-and-tags.md) § The `inline` field.
+
+If the harness cannot rewrite prompts, this stage is a no-op — brackets stay visible
+and `additionalContext` carries the meaning.
 
 ### Injector
 Attaches the resolved, traced text to the model's context — as a system/augmentation
@@ -47,12 +64,16 @@ is injected as a system reminder that Claude reads without a visible transcript
 entry. The original prompt text remains unchanged — the model sees both the
 directive syntax and the injected instructions.
 
-### Stripper
+### Stripper / Substitutor
 
 **Status: not achievable in v2 with Claude Code.**
 
 The Stripper stage removes `[...]` syntax from the user message before forwarding to
-the model. This requires the target hook to *rewrite* the outgoing prompt text.
+the model. With the `inline` field, this becomes substitution (replace with inline
+text) rather than flat deletion (which would mangle sentences). If `inline` is
+absent, brackets stay and `additionalContext` carries the meaning.
+
+This requires the target hook to *rewrite* the outgoing prompt text.
 Claude Code's `UserPromptSubmit` **cannot replace the prompt** — it only injects
 `additionalContext` alongside the untouched original (confirmed via
 [docs.anthropic.com/en/docs/claude-code/hooks](https://docs.anthropic.com/en/docs/claude-code/hooks)):
@@ -69,8 +90,8 @@ the directive syntax is unambiguous natural-language-like text that doesn't conf
 the model, and (c) `class: harness` directives never reach the model at all (they
 short-circuit in the harness router).
 
-**Future:** if a hook gains prompt-rewriting capability, the Stripper stage activates
-and hard rule #1 is fully achieved. The spec is designed so the Stripper is a
+**Future:** if a hook gains prompt-rewriting capability, the Substitutor activates
+and hard rule #1 is fully achieved. The spec is designed so the Substitutor is a
 drop-in addition, not a structural change.
 
 ### Harness router

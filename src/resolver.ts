@@ -86,6 +86,7 @@ function parseElementToml(tomlPath: string, mdPath: string): ElementDef | null {
         else if (key === "handler") el.handler = val;
       } else if (currentSection.startsWith("tags.") && currentTag) {
         if (key === "description") el.tags[currentTag].description = val;
+        else if (key === "inline") el.tags[currentTag].inline = val;
         else if (key === "overrides") {
           const arrMatch = rawVal.match(/\[(.*)\]/);
           if (arrMatch) {
@@ -218,6 +219,45 @@ export function resolve(
 
 function camelToKebab(s: string): string {
   return s.replace(/([a-z0-9])([A-Z])/g, "$1-$2").toLowerCase();
+}
+
+export function coalesceDirectives(
+  directives: CueDirective[]
+): CueDirective[] {
+  const groups = new Map<string, CueDirective[]>();
+
+  for (const d of directives) {
+    const scopeKey = d.scope
+      ? `${d.scope.type}:${d.scope.value}`
+      : "__none__";
+    const key = `${d.element.toLowerCase()}|${scopeKey}`;
+    const existing = groups.get(key);
+    if (existing) {
+      existing.push(d);
+    } else {
+      groups.set(key, [d]);
+    }
+  }
+
+  return Array.from(groups.values()).map((group) => {
+    if (group.length === 1) return group[0];
+
+    // Merge tags left-to-right by first appearance, deduplicate
+    const seen = new Set<string>();
+    const mergedTags: string[] = [];
+    for (const d of group) {
+      for (const tag of d.tags) {
+        const normalized = tag.toLowerCase().replace(/[\s-]+/g, "-");
+        if (!seen.has(normalized)) {
+          seen.add(normalized);
+          mergedTags.push(tag);
+        }
+      }
+    }
+
+    // First occurrence wins for everything else
+    return { ...group[0], tags: mergedTags };
+  });
 }
 
 export function validateVersionPin(version: string): string | null {

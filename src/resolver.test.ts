@@ -4,6 +4,7 @@ import {
   discoverElements,
   resolveSections,
   resolve,
+  coalesceDirectives,
   validateVersionPin,
   detectCircularUses,
   detectConflictingReplace,
@@ -289,6 +290,56 @@ describe("Resolver", () => {
       testElements.set("a", { name: "a", uses: [] });
       const errors = detectCircularUses(testElements);
       assert.equal(errors.length, 0);
+    });
+  });
+
+  describe("coalescing (same-element multi-occurrence)", () => {
+    it("coalesces two unscoped directives for the same element", () => {
+      const directives = scan("[Answer: NoSlop] ... [Answer: Lean]");
+      assert.equal(directives.length, 2);
+      const coalesced = coalesceDirectives(directives);
+      assert.equal(coalesced.length, 1);
+      assert.deepEqual(coalesced[0].tags, ["NoSlop", "Lean"]);
+    });
+
+    it("coalesces scoped directives with the same target", () => {
+      const directives = scan(
+        "[Answer: NoSlop]{@src/foo.rs} ... [Answer: Lean]{@src/foo.rs}"
+      );
+      assert.equal(directives.length, 2);
+      const coalesced = coalesceDirectives(directives);
+      assert.equal(coalesced.length, 1);
+      assert.deepEqual(coalesced[0].tags, ["NoSlop", "Lean"]);
+      assert.equal(coalesced[0].scope?.value, "src/foo.rs");
+    });
+
+    it("does NOT coalesce scoped directives with different targets", () => {
+      const directives = scan(
+        "[Answer: NoSlop]{@src/foo.rs} ... [Answer: Lean]{@src/bar.rs}"
+      );
+      assert.equal(directives.length, 2);
+      const coalesced = coalesceDirectives(directives);
+      assert.equal(coalesced.length, 2);
+    });
+
+    it("does NOT coalesce different elements", () => {
+      const directives = scan("[Answer: Lean] ... [Summarize: Brief]");
+      assert.equal(directives.length, 2);
+      const coalesced = coalesceDirectives(directives);
+      assert.equal(coalesced.length, 2);
+    });
+
+    it("deduplicates tags across coalesced directives", () => {
+      const directives = scan("[Answer: Lean] ... [Answer: Lean > NoSlop]");
+      const coalesced = coalesceDirectives(directives);
+      assert.equal(coalesced.length, 1);
+      assert.deepEqual(coalesced[0].tags, ["Lean", "NoSlop"]);
+    });
+
+    it("preserves first-occurrence position for ordering", () => {
+      const directives = scan("[Answer: NoSlop] text [Answer: Lean]");
+      const coalesced = coalesceDirectives(directives);
+      assert.equal(coalesced[0].line, 1);
     });
   });
 

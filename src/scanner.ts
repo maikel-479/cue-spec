@@ -2,15 +2,16 @@ import { CueDirective, ScopeRef } from "./types.js";
 
 const DIRECTIVE_RE = /\[([A-Za-z][A-Za-z0-9_-]*)(?::\s*([^\]]*?))?\](?:\{([^}]*)\})?/g;
 const FENCED_BLOCK_RE = /^(```|~~~)[^\n]*\n[\s\S]*?\1/gm;
+const INLINE_CODE_RE = /`([^`\n]+)`/g;
 
 export function scan(prompt: string): CueDirective[] {
-  const fenceRanges = findFencedBlocks(prompt);
+  const exclusionRanges = findExclusionRanges(prompt);
   const directives: CueDirective[] = [];
   let match: RegExpExecArray | null;
 
   DIRECTIVE_RE.lastIndex = 0;
   while ((match = DIRECTIVE_RE.exec(prompt)) !== null) {
-    if (isInsideFence(match.index, fenceRanges)) continue;
+    if (isInsideFence(match.index, exclusionRanges)) continue;
 
     const [raw, element, tagChain, scopeRaw] = match;
     const tags = tagChain
@@ -43,13 +44,22 @@ export function scanAlias(prompt: string): string | null {
   return firstLine;
 }
 
-function findFencedBlocks(text: string): Array<[number, number]> {
+function findExclusionRanges(text: string): Array<[number, number]> {
   const ranges: Array<[number, number]> = [];
-  const re = /^(```|~~~)[^\n]*\n[\s\S]*?\1/gm;
+
+  // Fenced blocks: ``` or ~~~
+  const fencedRe = /^(```|~~~)[^\n]*\n[\s\S]*?\1/gm;
   let m: RegExpExecArray | null;
-  while ((m = re.exec(text)) !== null) {
+  while ((m = fencedRe.exec(text)) !== null) {
     ranges.push([m.index, m.index + m[0].length]);
   }
+
+  // Inline code spans: `...`
+  INLINE_CODE_RE.lastIndex = 0;
+  while ((m = INLINE_CODE_RE.exec(text)) !== null) {
+    ranges.push([m.index, m.index + m[0].length]);
+  }
+
   return ranges;
 }
 

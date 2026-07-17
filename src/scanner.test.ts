@@ -116,6 +116,29 @@ Text after [Answer: Brief]`;
     });
   });
 
+  describe("inline code span skipping (backtick escape hatch)", () => {
+    it("does NOT scan directives inside single backtick spans", () => {
+      const prompt = "Use `[Answer: NoSlop]` for terse output. Then do [Answer: Lean].";
+      const directives = scan(prompt);
+      assert.equal(directives.length, 1);
+      assert.equal(directives[0].tags[0], "Lean");
+    });
+
+    it("handles multiple inline code spans on one line", () => {
+      const prompt = "See `[Answer: A]` and `[Answer: B]` but do [Answer: C].";
+      const directives = scan(prompt);
+      assert.equal(directives.length, 1);
+      assert.equal(directives[0].tags[0], "C");
+    });
+
+    it("handles mix of inline code and fenced blocks", () => {
+      const prompt = "Use `[Answer: A]` and:\n```\n[Answer: B]\n```\nReal: [Answer: C]";
+      const directives = scan(prompt);
+      assert.equal(directives.length, 1);
+      assert.equal(directives[0].tags[0], "C");
+    });
+  });
+
   describe("system nav", () => {
     it("detects message-initial colon", () => {
       assert.equal(scanSysnav(":mode plan"), ":mode plan");

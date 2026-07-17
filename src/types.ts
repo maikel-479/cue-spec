@@ -29,6 +29,7 @@ export interface ElementDef {
 
 export interface TagDef {
   description: string;
+  inline?: string;
   overrides: string[];
   exclusive?: boolean;
 }
@@ -64,6 +65,7 @@ export interface HookOutput {
   hookSpecificOutput?: {
     hookEventName: string;
     additionalContext?: string;
+    modifiedPrompt?: string;
   };
   decision?: "block";
   reason?: string;

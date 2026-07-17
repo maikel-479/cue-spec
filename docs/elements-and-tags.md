@@ -108,6 +108,80 @@ debug channel** (the `Verbosity: Debug` tier) whenever two tags claim the same
 dimension. The model stays clean; the user can audit *why* a composition came out the
 way it did. Silence doesn't scale; observability does.
 
+## Same-element multi-occurrence coalescing
+
+When multiple standalone directives in the same message reference the same element
+with the **same scope target**, they are coalesced into a single dispatch. Tags are
+merged left-to-right by first appearance in the raw text — the same ordering rule
+`>` uses within a single bracket.
+
+### Coalescing key
+
+Two directives coalesce iff:
+- Element name matches (case-insensitive)
+- Scope target is identical (`{@path}` = same path, `{#id}` = same id, `{$last}` =
+  `{$last}`, no scope = no scope)
+
+### What coalesces
+
+```
+[Answer: NoSlop] ... [Answer: Lean]
+→ one dispatch: [Answer: NoSlop > Lean]
+```
+
+```
+[Answer: NoSlop]{@src/foo.rs} ... [Answer: Lean]{@src/foo.rs}
+→ one dispatch: [Answer: NoSlop > Lean]{@src/foo.rs}
+```
+
+### What doesn't coalesce
+
+```
+[Answer: NoSlop]{@src/foo.rs} ... [Answer: Lean]{@src/bar.rs}
+→ two separate dispatches (different scope targets)
+```
+
+Wrapped spans never coalesce — each span's boundaries *are* its scope, and two
+wrapped spans are never the same span.
+
+### Conflict resolution
+
+The existing `>` machinery applies identically across coalesced occurrences:
+- **Leftmost-wins** for `overrides` conflicts (first appearance in the message)
+- **`exclusive` OR-reduction** — if *any* tag in the merged chain is `exclusive`,
+  `## Default Behavior` is skipped once for the whole dispatch, not per occurrence
+- **`## Default Behavior`** is included once for the entire coalesced dispatch
+
+This is not a new mechanism — it's the existing composition math applied to a case
+the spec previously didn't name. A second implementer would hit this gap.
+
+## The `inline` field
+
+Tags may declare an optional `inline` field for substitution when the harness
+supports prompt rewriting:
+
+```toml
+[tags.noslop]
+description = "Avoid filler, hedge words, and excessive qualifiers"
+inline      = "terse and unpadded"
+overrides   = ["tone", "length"]
+```
+
+| `inline` present | Behavior |
+|---|---|
+| Yes | Replace `[Element: Tags]` with the `inline` text before the model sees it |
+| No | Brackets stay untouched; `additionalContext` carries the meaning |
+
+**No fallback to `description`.** If `inline` is absent, the bracket syntax remains
+visible. One degraded path for two different causes (missing field vs harness that
+can't rewrite prompts), not two separate failure modes.
+
+**Composed tags:** if *any* tag in the chain lacks `inline`, the whole chain stays
+unsubstituted. The chain is only as substitutable as its weakest link.
+
+`description` remains the catalog entry for discovery and documentation. `inline` is
+the substitution surface for prompt rewriting. They serve different audiences.
+
 ## Composition limits
 
 - **Max 3 tags.** More than three is a symptom of a missing element or combined tag.
