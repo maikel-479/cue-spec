@@ -129,3 +129,5 @@ The `src/` directory contains a working Claude Code `UserPromptSubmit` hook:
   }
 }
 ```
+
+**Note**: By no means do i think this hook works, this is just a spec, an idea, that I'll be working on.
