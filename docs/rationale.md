@@ -56,10 +56,27 @@ justifies the project.
 ## Position as a layer, not a replacement
 
 The agent ecosystem is fragmenting around skill folders (`.claude`, `.codex`,
-`.opencode`, `.agents`). Proposing a fourth registry format would be the "15th
-standard" trap. Cue is deliberately a **composition and scoping layer on top of the
-existing `SKILL.md` layout** — extending what exists rather than replacing it. This
+`.opencode`, `.cursor`, `.agents`). Proposing a fourth registry format would be the
+"15th standard" trap. Cue is deliberately a **composition and scoping layer on top of
+the existing `SKILL.md` layout** — extending what exists rather than replacing it. This
 converts potential opponents (harness maintainers, standards skeptics) into adopters.
+
+## Context engineering is the new prompt engineering
+
+Research from Anthropic (Sep 2025) establishes that building with language models is
+now less about finding the right words and more about configuring the right context.
+The five-layer context stack — system instructions, memory, retrieved knowledge, tool
+definitions, execution context — is the new engineering surface. Cue operates at the
+intersection of system instructions and retrieved knowledge: it structures *how*
+behavioral context is assembled and *what* content is attached.
+
+Key findings that validate Cue's design:
+- **Context rot:** models process n² pairwise token relationships; more context ≠
+  better performance. Cue's sectional tracing minimizes tokens loaded per dispatch.
+- **Lost-in-the-middle:** accuracy drops to 38% in the prompt's center. Scoped
+  directives let users control where behavioral context appears.
+- **Budget management:** the dispatcher must account for context window pressure.
+  Cue's spec now defines how.
 
 ## Three primitives the spec must not omit
 

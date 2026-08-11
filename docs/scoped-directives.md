@@ -59,32 +59,30 @@ everything downstream."
 Attaches to **every** matched chunk. The tracer runs the glob, resolves each match to
 its context slot, and injects the traced section into each. One directive, N files.
 
-## Mode: augment (default) vs replace
+## Scope modes: augment vs replace
 
 A scope answers *which chunk the directive governs*. It does not answer whether the
 directive's output **replaces** or **augments** that chunk's treatment. That is the
-mode, and the default is **augment** (non-destructive):
+mode, and it is an **element-level property**, not user syntax:
 
-| Mode | Behavior | Use for |
-|---|---|---|
-| `augment` (default) | Attach behavioral annotation to the chunk | `Answer`, `Review`, `Explain` |
-| `replace` | Consume the chunk; the directive's output stands in | `Translate`, `Summarize`, `Format` |
+| Mode | Element class | Behavior | Use for |
+|---|---|---|---|
+| `augment` (default) | `class: model` | Attach behavioral annotation to the chunk | `Answer`, `Review`, `Explain` |
+| `replace` | `class: transform` | Consume the chunk; the directive's output stands in | `Translate`, `Summarize`, `Format` |
 
-```
-[Translate: Natural]{@README.md:replace}
-[Answer: Technical]{@src/foo.rs}            ← augment implied
-```
+The mode is determined by the element's `class` in its `.toml` definition. Users
+do not write `:augment` or `:replace` suffixes — the element's class determines
+the behavior.
 
 `augment` is the default because it **fails safe** — it never deletes user content,
-only adds framing. `replace` is opt-in for transform directives that consume their
-input. This is a deliberate engineering choice: a destructive mode must be explicit.
+only adds framing. `replace` requires explicit opt-in via `class: transform`. This
+is a deliberate engineering choice: a destructive mode must be explicit.
 
-## Interaction with wrap and standalone
+## Interaction with scoped content
 
-- No scope, no wrap → next block
-- No scope, wrap → wrapped content
-- Scope, no wrap → `@path` chunk is both input and annotation target
-- Scope + wrap → wrapped content is input; scope is an extra annotation on `@path`
+- No scope → next block
+- Scope → `@path` chunk is both input and annotation target
 
-The `{...}` scope is strictly a pointer. Inline payloads use the wrap form. That
-separation means the parser never guesses whether `{...}` holds a path or content.
+The `{...}` scope is strictly a pointer. Inline payloads use the standalone form
+(next-block attachment). That separation means the parser never guesses whether
+`{...}` holds a path or content.

@@ -21,6 +21,18 @@ must hand-edit for every addition.
 Adding an element = drop a `.toml` + `.md` pair. The scanner discovers it by
 directory scan. No central file to edit, no merge-conflict-prone manifest.
 
+## Discovery roots
+
+Load elements from these paths (in order):
+
+1. `~/.cue/elements/` — user-global, shared across projects
+2. `~/.cue/tags/` — user-global shared tags
+3. `<project>/.cue/elements/` — project-specific (if the harness supports project roots)
+4. `<project>/.cue/tags/` — project-specific shared tags
+
+Harness-specific elements (`Mode`, `Status`, `Cost`) live in project root. Content
+elements (`Answer`, `Review`) live globally. Closer scope wins on name conflicts.
+
 ## Lazy discovery (required)
 
 Discovery is **lazy by default**. The dispatcher loads only the `name` + `description`
@@ -43,12 +55,18 @@ Used for global tags, settings, and overrides — not for element registration.
 
 ```toml
 [cue]
-version = "0.2.0"
+version = "0.4.0"
 
 [[tags]]
 name = "Brief"
 description = "Constrain output length. One paragraph or equivalent."
 source = "tags/brief.md"
+
+[aliases]
+commit = "[Commit]"
+explain = "[Explain: Technical]"
+review = "[Review]"
+test = "[Test]"
 ```
 
 ## `SKILL.md` compatibility
@@ -56,15 +74,16 @@ source = "tags/brief.md"
 Cue is a **composition and scoping layer on top of the existing `SKILL.md` /
 agentskills.io layout**, not a replacement for it.
 
-- An element's `.md` body *is* a skill body. It can live at `.claude/skills/...` or
-  `.opencode/skills/...` and be discovered by those harnesses too.
+- An element's `.md` body *is* a skill body. It can live at `.claude/skills/...`,
+  `.opencode/skills/...`, `.cursor/rules/...`, or any harness's skill folder and be
+  discovered by those harnesses too.
 - Each `## Tag: X` section maps to a sub-capability of that skill.
 - The Cue dispatcher adds two things the standard skill loader lacks: sectional
   tracing (load only the invoked section) and content scoping (`{@path}`).
 
 Positioning Cue as compatible — not competing — with agentskills.io is deliberate.
-The agent ecosystem is already fragmenting around skill folders (`.claude`,
-`.codex`, `.opencode`, `.agents`); proposing a fourth registry format would be the
+The agent ecosystem is already fragmenting around skill folders (`.claude`, `.codex`,
+`.opencode`, `.cursor`, `.agents`); proposing a fourth registry format would be the
 "15th standard" trap. Cue extends what exists.
 
 ## Validation

@@ -11,9 +11,8 @@ authoritative syntax reference.
 <element>     ::= identifier
 <tag>         ::= identifier
 
-<scope>       ::= "{" <reference> [ ":" <mode> ] "}"
+<scope>       ::= "{" <reference> "}"
 <reference>   ::= "@" <path> | "#" <id> | "$last" | <glob>
-<mode>        ::= "augment" | "replace"
 
 <sysnav>      ::= ":" <command> { <arg> } { ";" <sysnav> }
 <alias>       ::= "/" <command>
@@ -52,17 +51,6 @@ stack.
 ```
 Attaches the behavior to a specific injected chunk. See
 [docs/scoped-directives.md](scoped-directives.md).
-
-### Wrapping form
-
-```
-[Summarize: Brief]
-This is a long article about the history of computing...
-[/Summarize]
-```
-
-The content between opening and closing directive is the element's input. Use the
-wrapping form when multiple directives appear in sequence and inputs must not bleed.
 
 ### Standalone form
 

@@ -12,6 +12,7 @@ tag on a single `answer` element.
 name        = "answer"
 description = "Respond to a prompt, question, or statement"
 version     = "1.0.0"
+class       = "model"
 allowed-tools = ""
 
 [tags.investigate]
@@ -20,7 +21,7 @@ overrides   = ["process"]
 
 [tags.lean]
 description = "Avoid over-engineering; minimal scope"
-overrides   = ["scope"]
+overrides   = ["depth"]
 
 [tags.noslop]
 description = "Flowing prose, minimal markdown/bullets"

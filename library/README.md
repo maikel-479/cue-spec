@@ -26,3 +26,16 @@ natural sub-task becomes a **tag** that traces only its own `## Tag:` section:
 
 Dispatch cost is a function of the tag requested, not the size of the skill. See
 [docs/sectional-tracing.md](../docs/sectional-tracing.md).
+
+## Element-specific dimensions
+
+The standard behavioral dimensions are:
+`tone`, `length`, `depth`, `structure`, `format`, `mode`, `output`, `process`
+
+Elements may declare additional **domain-specific dimensions** that are only
+meaningful within that element's scope. For example, `claude-api` uses `language`
+and `sdk` dimensions — these are relevant only when building Claude API apps, not
+for cross-element composition.
+
+Domain-specific dimensions do not participate in cross-element conflict detection.
+They are valid within their element but invisible to other elements' tag composition.

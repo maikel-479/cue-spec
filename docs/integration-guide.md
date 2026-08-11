@@ -1,37 +1,25 @@
 # Integration Guide
 
-How to adopt Cue in a second harness. This guide walks through wiring the reference
+How to adopt Cue in an agent harness. This guide walks through wiring a Cue
 dispatcher into a new project, step by step.
 
 ## Prerequisites
 
-- A harness with a hook that fires before the model call (e.g., Claude Code's
-  `UserPromptSubmit`, or a future OpenCode `chat.request.before`)
-- Node.js 18+ installed
-- The cue-spec repo cloned locally
+- A harness with a hook that fires before the model call (pre-model-call hook)
+- The Cue spec cloned locally
 
-## Step 1: Install the dispatcher
-
-```bash
-# Clone cue-spec somewhere persistent
-git clone https://github.com/maikel-479/cue-spec.git ~/.cue-spec
-
-# Build it
-cd ~/.cue-spec && npm install && npx tsc
-```
-
-## Step 2: Set up the element registry
+## Step 1: Set up the element registry
 
 Elements live in `~/.cue/elements/`. Each element is a `.toml` + `.md` pair inside
 an `author/` subdirectory:
 
 ```
 ~/.cue/elements/
-├── maikel-479/
+├── maikel/
 │   ├── answer.toml
 │   ├── answer.md
-│   ├── claude-api.toml
-│   └── claude-api.md
+│   ├── code.toml
+│   └── code.md
 └── your-name/
     ├── my-element.toml
     └── my-element.md
@@ -45,45 +33,34 @@ Shared tags live in `~/.cue/tags/`:
 └── with-tests.md
 ```
 
+## Step 2: Implement the dispatcher
+
+The dispatcher pipeline has five stages. Each is independent:
+
+1. **Scanner** — find `[Element: Tag]`, `{@path}`, `:command` in user input
+2. **Coalescer** — merge same-element+same-scope directives
+3. **Resolver** — look up elements, trace sections, resolve overrides
+4. **Substitutor** — replace directive syntax with `inline` text (if hook supports it)
+5. **Injector** — attach resolved text to model context
+
+See [docs/dispatch-architecture.md](docs/dispatch-architecture.md) for the full
+pipeline specification.
+
 ## Step 3: Register the hook
 
-### Claude Code
+Wire the dispatcher into your harness's pre-model-call hook. The hook should:
 
-Add to `.claude/settings.json`:
+1. Read the user's input
+2. Run it through the dispatcher pipeline
+3. If `class: harness` directives are found, route them to native handlers and
+   short-circuit (model never sees them)
+4. If `class: model` directives are found, inject the resolved text as
+   `additionalContext`
+5. Return the (possibly modified) input to the harness
 
-```json
-{
-  "hooks": {
-    "UserPromptSubmit": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node ~/.cue-spec/dist/index.js"
-          }
-        ]
-      }
-    ]
-  }
-}
-```
-
-### OpenCode (when `chat.request.before` ships)
-
-Add to `opencode.json`:
-
-```json
-{
-  "hooks": {
-    "chat.request.before": {
-      "command": "node ~/.cue-spec/dist/index.js"
-    }
-  }
-}
-```
-
-Note: OpenCode's hook surface is still in development as of July 2026. Check
-[#19425](https://github.com/anomalyco/opencode/issues/19425) for status.
+The exact hook mechanism depends on your harness. The Cue spec is
+hook-agnostic — it defines *what* the dispatcher does, not *how* the harness
+calls it.
 
 ## Step 4: Create your first element
 
@@ -96,11 +73,12 @@ Note: OpenCode's hook surface is still in development as of July 2026. Check
    name        = "review"
    description = "Review code for quality and best practices"
    version     = "1.0.0"
+   class       = "model"
    allowed-tools = "Read, Glob, Grep"
 
    [tags.with-tests]
    description = "Also check test coverage"
-   overrides   = ["scope"]
+   overrides   = ["process"]
    ```
 
 3. Create the `.md` file:
@@ -124,8 +102,8 @@ Type a directive in your prompt:
 ```
 
 The dispatcher should inject the resolved instructions as context. The model will
-see both the directive syntax and the injected instructions (Claude Code's
-`UserPromptSubmit` cannot strip the original prompt).
+see both the directive syntax and the injected instructions (unless the hook
+supports prompt rewriting, in which case the syntax is replaced).
 
 ## Step 6: Share via lockfile
 
@@ -141,6 +119,31 @@ path = "elements/review.toml"
 
 Others can clone your elements and drop them into their `~/.cue/elements/` directory.
 
+## Step 7: Add context budget management
+
+To prevent Cue injections from blowing past the context window, implement a context
+budget manager that:
+
+1. Estimates token count of each injection (~4 chars/token)
+2. Prioritizes scoped directives over unscoped
+3. Compresses or defers low-priority injections when budget is tight
+4. Reports context pressure to the user
+
+See [docs/dispatch-architecture.md](docs/dispatch-architecture.md) § Context budget
+management for the full specification.
+
+## Step 8: Wire the turn lifecycle
+
+To make Cue responsive to the agent loop (not just a pre-flight interceptor), hook
+into the turn lifecycle:
+
+- **beforeTurn:** re-evaluate active cues, refresh file scopes, measure context
+- **afterTurn:** update `{$last}` reference, track cost per turn
+- **onCompaction:** clear active cues (users re-apply them cheaply)
+
+See [docs/dispatch-architecture.md](docs/dispatch-architecture.md) § Turn-level
+lifecycle for details.
+
 ## Troubleshooting
 
 **"Element 'X' not found"** — the element isn't in `~/.cue/elements/`. Check the
@@ -152,3 +155,6 @@ scanner only activates on directive syntax.
 **Sections not traced correctly** — check that `## Tag: X` headers in the `.md` file
 match the tag names in the `.toml` file. The matcher is case-insensitive and
 hyphen/space-normalized.
+
+**Context overflow** — large glob scopes (`{@src/**/*.rs}`) can produce many
+injections. Implement the context budget manager to handle this gracefully.

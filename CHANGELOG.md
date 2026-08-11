@@ -1,5 +1,50 @@
 # Changelog
 
+## v0.4 (August 2026)
+
+### Spec overhaul — harness-agnostic, research-grounded
+
+- **Removed Claude Code-specific framing** — all docs now reference generic
+  pre-model-call hooks, not `UserPromptSubmit` specifically
+- **Removed reference implementation** (`src/`, `dist/`, `package.json`, `tsconfig.json`)
+  — the spec stands alone without tied-to-a-specific-harness code
+- **Removed `.mimocode/`** — external plugin config, not part of the Cue spec
+
+### Simplified syntax
+
+- **Removed wrap boundary** — `[Element]...[/Element]` syntax eliminated; directives
+  apply to the next content block or scoped chunk
+- **Removed scope mode suffix** — `:augment`/`:replace` is no longer user syntax;
+  determined by element `class` (`model` → augment, `transform` → replace)
+- **Removed version pin from user syntax** — `[Element@1.2: Tag]` no longer valid;
+  version management is an internal registry concern
+- **Reduced behavioral dimensions from 15 to 8** — the fixed enum is now:
+  `tone`, `length`, `depth`, `structure`, `format`, `mode`, `output`, `process`
+  (removed: `register`, `voice`, `vocabulary`, `scope`, `language`, `sdk`, `idioms`)
+
+### New spec concepts
+
+- **Context budget management** — dispatcher spec now defines how to handle context
+  window pressure from injections (priority ordering, compression, deferral)
+- **Turn-level lifecycle** — dispatch architecture recommends `beforeTurn`/`afterTurn`
+  hooks instead of a one-shot pre-flight interceptor
+- **Graph-based turn execution** — dispatch pipeline modeled as explicit state
+  transitions, not a monolithic loop
+- **Element class taxonomy** — `model` (behavioral injection), `harness` (native
+  handler), `transform` (consumes input, replaces chunk)
+- **Domain-specific dimensions** — elements may declare dimensions beyond the standard
+  8 for element-specific composition (e.g., `language`, `sdk` in `claude-api`)
+
+### Documentation updates
+
+- All 10 spec documents updated for harness-agnostic framing
+- `docs/dispatch-architecture.md` rewritten with context budget, turn lifecycle,
+  graph-based execution, and harness capability matrix
+- `docs/rationale.md` updated with context engineering research (Anthropic Sep 2025)
+- `docs/integration-guide.md` rewritten as a generic harness adoption guide
+- `library/README.md` updated with domain-specific dimension guidance
+- `CONTRIBUTING.md` updated with 8-dimension enum and element class taxonomy
+
 ## v0.3 (July 2026)
 
 ### Spec correctness
@@ -28,7 +73,6 @@
 ### Documentation
 - Added `docs/integration-guide.md` — adoption walkthrough for second harnesses
 - Added `CONTRIBUTING.md` with namespace convention and element creation rules
-- Added `docs/integration-guide.md` for Claude Code and future OpenCode setup
 - Updated README to v0.3 with reference implementation section
 
 ### New issues opened

@@ -16,11 +16,11 @@ and a clean separation between *content-affecting behavior* and *harness/UI stat
 /commit                                   ← alias, expands to [Commit]
 ```
 
-- **Status:** Draft v0.3
+- **Status:** Draft v0.4
 - **Transport:** compatible with the `SKILL.md` / agentskills.io layout — Cue is a
   *composition and scoping layer*, not a replacement for it.
-- **Reference implementation:** `src/` — a Claude Code `UserPromptSubmit` hook that
-  scans, resolves, and injects Cue directives. Tested against all library elements.
+- **Harness-agnostic:** the spec is designed for any agent harness with a pre-model-call
+  hook. Implementation-specific details are in a separate harness integration guide.
 - **License:** MIT
 
 ---
@@ -75,6 +75,29 @@ behavior**.
 
 ---
 
+## What's new in v0.4
+
+Based on research into modern prompt engineering, context engineering, and agentic
+harness patterns (2025-2026):
+
+- **8 behavioral dimensions** (reduced from 15) — the enum is now:
+  `tone`, `length`, `depth`, `structure`, `format`, `mode`, `output`, `process`
+- **Scope mode is an element property**, not user syntax — `augment`/`replace` is
+  determined by `class: model` vs `class: transform`, not `:augment`/`:replace`
+  suffixes in `{@path}` scopes
+- **Version pin removed from user syntax** — `[Element@1.2: Tag]` is no longer valid;
+  version management is an internal registry concern
+- **Wrap boundary removed** — `[Element]...[/Element]` syntax removed; directives
+  apply to the next content block or scoped chunk
+- **Context budget management** — the spec now defines how dispatchers should handle
+  context window pressure from injections
+- **Graph-based turn execution** — the dispatch architecture now recommends explicit
+  state transitions instead of a monolithic input interceptor
+- **Harness-agnostic framing** — all docs reference generic hook patterns, not
+  Claude Code's `UserPromptSubmit` specifically
+
+---
+
 ## Document index
 
 | Doc | What it covers |
@@ -82,11 +105,11 @@ behavior**.
 | [docs/grammar.md](docs/grammar.md) | The full syntax, all directive forms |
 | [docs/elements-and-tags.md](docs/elements-and-tags.md) | Elements, tags, the `overrides` enum, composition |
 | [docs/sectional-tracing.md](docs/sectional-tracing.md) | Why dispatch cost is independent of registry size |
-| [docs/scoped-directives.md](docs/scoped-directives.md) | `{@path}` / `{#id}` / `{$last}` scoping + glob + mode |
+| [docs/scoped-directives.md](docs/scoped-directives.md) | `{@path}` / `{#id}` / `{$last}` scoping + glob |
 | [docs/shared-tags.md](docs/shared-tags.md) | Shared-tag includes (`[[uses]]`) |
 | [docs/registry-and-discovery.md](docs/registry-and-discovery.md) | Filesystem registry, lazy discovery, `SKILL.md` compatibility |
-| [docs/secrets-and-versioning.md](docs/secrets-and-versioning.md) | Secret injection, version pinning, lazy loading |
-| [docs/dispatch-architecture.md](docs/dispatch-architecture.md) | The `beforeTurn` dispatcher; model never sees syntax |
+| [docs/secrets-and-versioning.md](docs/secrets-and-versioning.md) | Secret injection, versioning, lazy loading |
+| [docs/dispatch-architecture.md](docs/dispatch-architecture.md) | The dispatch pipeline, context budget, turn execution |
 | [docs/rationale.md](docs/rationale.md) | Research-grounded argument for the design |
 
 ---
@@ -97,37 +120,3 @@ Not everything is a Cue. A Cue is right when the action is repeatable, has genui
 variants, and is non-obvious. If you'd need a Cue definition shorter than the
 instruction itself — just write the instruction. See the element creation checklist
 in [docs/elements-and-tags.md](docs/elements-and-tags.md).
-
----
-
-## Reference implementation
-
-The `src/` directory contains a working Claude Code `UserPromptSubmit` hook:
-
-| Module | What it does |
-|---|---|
-| `src/scanner.ts` | Finds `[Element: Tag]`, `{@path}`, `:command` — skips fenced code blocks |
-| `src/resolver.ts` | Discovers elements, parses TOML + MD, traces sections, resolves overrides |
-| `src/index.ts` | Hook entry point — reads JSON from stdin, outputs `additionalContext` |
-
-**Run tests:** `npx tsc && node --test dist/*.test.js`
-
-**Use as a Claude Code hook:** add to `.claude/settings.json`:
-```json
-{
-  "hooks": {
-    "UserPromptSubmit": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node /path/to/cue-spec/dist/index.js"
-          }
-        ]
-      }
-    ]
-  }
-}
-```
-
-**Note**: By no means do i think this hook works, this is just a spec, an idea, that I'll be working on.

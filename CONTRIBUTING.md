@@ -26,11 +26,12 @@
 name        = "my-element"
 description = "One sentence: what this element does"
 version     = "1.0.0"
-allowed-tools = "Read, Write"     # minimum tools needed
+class       = "model"                    # model | harness | transform
+allowed-tools = "Read, Write"            # minimum tools needed
 
 [tags.my-tag]
 description = "What this tag changes"
-overrides   = ["tone", "format"]  # from the fixed enum
+overrides   = ["tone", "format"]         # from the fixed enum
 ```
 
 ### MD file
@@ -47,9 +48,11 @@ What this tag modifies. Only write what's different from the default.
 
 - Tags are **execution variants**, not style preferences. Two tags that differ only
   in tone should be one tag with a modifier.
-- Each tag declares `overrides` from the fixed enum: `tone, register, length, depth,
-  structure, format, voice, vocabulary, mode, output, process, scope, language, sdk,
-  idioms`.
+- Each tag declares `overrides` from the fixed enum: `tone`, `length`, `depth`,
+  `structure`, `format`, `mode`, `output`, `process`.
+- Elements may declare additional **domain-specific dimensions** (e.g., `language`,
+  `sdk`) that are only meaningful within that element's scope. These do not
+  participate in cross-element conflict detection.
 - Max 3 tags per composition. More is a symptom of a missing element.
 - Use `exclusive = true` to skip Default Behavior for that tag.
 
@@ -65,14 +68,6 @@ Before submitting, verify:
 
 If three or more elements need the same tag, promote it to a shared tag in
 `library/tags/<name>.md`. Reference it via `[[uses]]` in each element's TOML.
-
-## Testing
-
-Run the dispatcher tests:
-
-```bash
-npx tsc && node --test dist/*.test.js
-```
 
 ## Commit messages
 

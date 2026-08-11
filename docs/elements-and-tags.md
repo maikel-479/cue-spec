@@ -31,22 +31,20 @@ Each tag declares the behavioral dimensions it governs, drawn from a **fixed enu
 (not free text):
 
 ```
-tone, register, length, depth, structure, format, voice, vocabulary, mode, output,
-process, scope, language, sdk, idioms
+tone, length, depth, structure, format, mode, output, process
 ```
 
 Free-text dimensions make cross-author composition impossible to validate. The enum
 makes conflict detection mechanical. Dimensions are grouped by what they govern:
 
-- **Voice/presentation:** `tone`, `register`, `voice`, `vocabulary`, `idioms`
-- **Shape/length:** `length`, `depth`, `structure`, `format`
-- **Execution:** `mode`, `output`, `process`, `scope`
-- **Context:** `language`, `sdk`
+- **Presentation:** `tone`, `structure`, `format`
+- **Scope/length:** `length`, `depth`
+- **Execution:** `mode`, `output`, `process`
 
 ```toml
 [tags.human]
 description = "Answer in a natural, human-like tone"
-overrides   = ["tone", "structure", "voice"]
+overrides   = ["tone", "structure"]
 
 [tags.brief]
 description = "One paragraph maximum"
@@ -67,17 +65,10 @@ tag claims fall back to the element's default.
 `[Answer: Human > Brief]`:
 - `tone` → Human (leftmost claims it)
 - `structure` → Human
-- `voice` → Human
 - `length` → Brief
 
 Result: human tone and structure, constrained to one paragraph. Coherent because the
 only shared dimension (`tone` is Human-only; `length` is Brief-only) has no conflict.
-
-`[Answer: Human > Formal]`:
-- `tone` → Human wins; `register` → Formal (only Formal claims it)
-
-Result: casual tone, formal register — "professional but warm." Documented, not
-surprising, because the conflict was resolved by position.
 
 ### Worked example: 3-tag conflict
 
@@ -87,15 +78,12 @@ surprising, because the conflict was resolved by position.
 |---|---|---|---|---|
 | `tone` | ✓ | | | Human |
 | `structure` | ✓ | | | Human |
-| `voice` | ✓ | | | Human |
-| `vocabulary` | | ✓ | | Technical |
-| `idioms` | | ✓ | | Technical |
+| `depth` | | ✓ | | Technical |
 | `length` | | | ✓ | Brief |
 
-Result: human tone, structure, and voice; technical vocabulary and idioms; one
-paragraph maximum. Human and Technical share no overlapping dimensions, so there is
-no conflict to resolve — the composition is clean. Brief is orthogonal to both (it
-only governs `length`).
+Result: human tone and structure; technical depth; one paragraph maximum. Human and
+Technical share no overlapping dimensions, so there is no conflict to resolve — the
+composition is clean. Brief is orthogonal to both (it only governs `length`).
 
 This is the common case: well-designed tags compose without conflict because they
 govern different dimensions. Conflicts only arise when two tags claim the *same*
@@ -141,9 +129,6 @@ Two directives coalesce iff:
 → two separate dispatches (different scope targets)
 ```
 
-Wrapped spans never coalesce — each span's boundaries *are* its scope, and two
-wrapped spans are never the same span.
-
 ### Conflict resolution
 
 The existing `>` machinery applies identically across coalesced occurrences:
@@ -151,9 +136,6 @@ The existing `>` machinery applies identically across coalesced occurrences:
 - **`exclusive` OR-reduction** — if *any* tag in the merged chain is `exclusive`,
   `## Default Behavior` is skipped once for the whole dispatch, not per occurrence
 - **`## Default Behavior`** is included once for the entire coalesced dispatch
-
-This is not a new mechanism — it's the existing composition math applied to a case
-the spec previously didn't name. A second implementer would hit this gap.
 
 ## The `inline` field
 
@@ -186,8 +168,21 @@ the substitution surface for prompt rewriting. They serve different audiences.
 
 - **Max 3 tags.** More than three is a symptom of a missing element or combined tag.
 - **Degree is not a variant.** `SlightlyFormal` / `VeryFormal` → one `Formal` tag.
-- **Orthogonal dimensions compose cleanly.** `[Technical > Brief]` (vocabulary ×
+- **Orthogonal dimensions compose cleanly.** `[Technical > Brief]` (depth ×
   length) is clean; `[Brief > Verbose]` is useless (Brief cancels Verbose).
+
+## Element class
+
+Elements declare a `class` that determines how they are dispatched:
+
+| Class | Behavior | Example |
+|---|---|---|
+| `model` (default) | Shapes LLM context via behavioral injection | `Answer`, `Review`, `Summarize` |
+| `harness` | Routed to native handler; model never sees it | `Mode`, `Status`, `Cost` |
+| `transform` | Consumes input; output replaces the chunk | `Translate`, `Format` |
+
+The `class` determines scope mode: `model` → augment (default), `transform` →
+replace. This is an element property, not user syntax.
 
 ## Element creation checklist
 

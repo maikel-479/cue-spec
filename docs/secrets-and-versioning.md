@@ -76,7 +76,7 @@ The `.env` backend is deliberately simple. It proves the lifecycle (prompt → s
 substitute) without requiring any platform-specific code. Swapping backends later is
 a one-interface change — the rest of the spec is backend-agnostic.
 
-## 2. Version pinning
+## 2. Versioning
 
 If `[Code: rust]` resolves to whatever is on disk, a breaking edit to `rust.md`
 silently breaks every downstream session. Skills need versions the way packages do.
@@ -87,12 +87,14 @@ name = "code"
 version = "1.3.0"
 ```
 
-- A directive may pin: `[Code@1.2: rust]` resolves to the `1.2.x` line.
 - Unpinned directives resolve to the latest compatible version in the registry.
 - A breaking change (major bump) does not silently affect sessions pinned to the
   prior major.
+- Version management is an **internal registry concern** — users do not write
+  version pins in directive syntax (`[Element@1.2: Tag]` is not valid user syntax).
 
-Distribution without versioning is how skill ecosystems rot. Pinning is table-stakes.
+Distribution without versioning is how skill ecosystems rot. Versioning is
+table-stakes for the registry; pinning syntax is not exposed to users.
 
 ## 3. Lazy loading (restated)
 
