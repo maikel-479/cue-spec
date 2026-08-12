@@ -1,12 +1,14 @@
 # Grammar
 
-Cue has one directive grammar plus two anchor tiers. This document is the
+Cue has two statement forms plus two anchor tiers. This document is the
 authoritative syntax reference.
 
 ## BNF
 
 ```bnf
-<directive>   ::= "[" <element> [ ":" <tag-chain> ] [ <scope> ] "]"
+<statement>   ::= <cue> | <scope> | <sysnav> | <alias>
+
+<cue>         ::= "[" <element> [ ":" <tag-chain> ] [ <scope> ] "]"
 <tag-chain>   ::= <tag> { ">" <tag> }
 <element>     ::= identifier
 <tag>         ::= identifier
@@ -17,6 +19,9 @@ authoritative syntax reference.
 <sysnav>      ::= ":" <command> { <arg> } { ";" <sysnav> }
 <alias>       ::= "/" <command>
 ```
+
+A `{@file}` is a valid statement on its own — it does not require a `[...]`
+wrapper. See [Scoped Directives](scoped-directives.md).
 
 ## Cue directives
 
@@ -44,13 +49,14 @@ subsequent tag narrows it. Resolution rule: when tags conflict on a behavioral
 dimension, the **leftmost** tag wins that dimension. Non-overlapping dimensions
 stack.
 
-### Scoped
+### Scoped cue
 
 ```
 [Answer: Technical]{@src/foo.rs}
 ```
-Attaches the behavior to a specific injected chunk. See
-[docs/scoped-directives.md](scoped-directives.md).
+Attaches the behavior to a specific injected chunk. The scope is a pointer to
+content; the cue is the behavioral framing. See
+[Scoped Directives](scoped-directives.md).
 
 ### Standalone form
 
@@ -61,6 +67,39 @@ What is the speed of light?
 
 The directive applies to the next content block — everything that follows until the
 next directive or end of message.
+
+## Scope-only directives
+
+```
+{@src/foo.rs}
+{#id}
+{$last}
+{@src/**/*.rs}
+```
+
+Scopes are **first-class statements** — they work without a `[...]` wrapper.
+A scope-only directive injects the referenced content as passive context. The
+model sees the content and decides based on surrounding context; no behavioral
+framing is applied.
+
+| Form | Meaning |
+|---|---|
+| `{@path}` | inject the file's content |
+| `{#id}` | inject the marked block's content |
+| `{$last}` | inject the most recent tool/fetch result |
+| `{@glob}` | inject every matching file's content |
+
+Scope-only directives compose with cues in the same message:
+
+```
+{@src/config.rs}
+[Answer: Technical]{@src/main.rs}
+```
+
+First injects `config.rs` as passive context. Second injects `main.rs` with
+technical behavioral framing. Two different intents, two different mechanisms.
+
+See [Scoped Directives](scoped-directives.md) for the full specification.
 
 ## Colon tier (system nav)
 
@@ -100,9 +139,9 @@ boundary.
 
 | Zone | Syntax | Excludes |
 |---|---|---|
-| Fenced block | ` ``` ... ``` ` | All directives |
-| Fenced block | `~~~ ... ~~~` | All directives |
-| Inline code | `` ` ... ` `` | All directives |
+| Fenced block | ` ``` ... ``` ` | All directives and scopes |
+| Fenced block | `~~~ ... ~~~` | All directives and scopes |
+| Inline code | `` ` ... ` `` | All directives and scopes |
 
 ## Malformed directives
 

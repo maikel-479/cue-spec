@@ -9,28 +9,38 @@ syntax hiding requires a hook with prompt-rewriting capability.
 
 ```
 stdin → [scanner] → [coalescer] → [resolver] → [substitutor] → [injector] → output
-                 ↓                       ↓
-            [harness router]   (class: harness → native handler; model never sees it)
+                 ↓                       ↓                       ↓
+            [harness router]   (scope-only → passive inject)  (class: harness → native handler)
 ```
 
-Each stage has a single responsibility. Changes to one stage don't cascade.
+Each stage has a single responsibility. Changes to one stage don't cascade. The
+scanner produces both cue directives and scope-only directives; the coalescer only
+groups cues; the resolver handles both paths.
 
 ## Stages
 
 ### Scanner
 Runs once at message ingress (the pre-model-call hook). Finds every `[...]`
-directive anywhere in the message — position-agnostic. Also checks the
-message-initial character for `:` (system nav) and `/` (alias).
+directive and every `{...}` scope anywhere in the message — position-agnostic.
+Also checks the message-initial character for `:` (system nav) and `/` (alias).
+
+The scanner produces two kinds of parsed items:
+- **Cues:** `[Element: Tag]{@scope}` — behavioral directives with optional scope
+- **Scope-only:** `{@path}`, `{#id}`, `{$last}` — standalone content references
 
 ### Coalescer
-Groups directives by **(element name, scope target)** before the Resolver runs.
+For cues: groups by **(element name, scope target)** before the Resolver runs.
 Multiple occurrences of the same element with the same scope target collapse into
 one directive with merged tags (left-to-right by first appearance). See
 [elements-and-tags.md](elements-and-tags.md) § Same-element multi-occurrence
 coalescing.
 
+Scope-only directives do not coalesce — each `{@file}` is an independent injection.
+
 ### Resolver
-For each coalesced Cue directive:
+For each parsed item:
+
+**Cue directives:**
 1. Look up the element in the registry.
 2. Resolve the merged tag chain left-to-right, tracing each tag's section via the
    [sectional-tracing mechanism](sectional-tracing.md) (header-based key, byte-offset
@@ -40,6 +50,11 @@ For each coalesced Cue directive:
    ([scoped-directives.md](scoped-directives.md)).
 5. If `class: harness`, route to the harness handler instead of building model
    context.
+
+**Scope-only directives:**
+1. Resolve the referenced content (read file, expand glob, resolve id, or fetch
+   last result).
+2. Inject as passive context — no behavioral framing applied.
 
 ### Substitutor
 If the harness supports prompt rewriting, replaces `[Element: Tags]` syntax in the

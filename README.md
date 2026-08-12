@@ -10,13 +10,17 @@
 Cue gives users a compact, readable syntax to trigger agent actions with precision,
 and a clean separation between *content-affecting behavior* and *harness/UI state*.
 
+Scopes are first-class — `{@src/foo.rs}` injects content without a wrapper.
+Cues add behavioral framing: `[Answer: Technical]{@src/foo.rs}`.
+
 ```
-[Answer: Human > Brief]{@src/foo.rs}     ← behavior, scoped to one file
-:mode plan                                ← harness state, never reaches the model
-/commit                                   ← alias, expands to [Commit]
+{@src/config.rs}                           ← scope-only, passive context injection
+[Answer: Human > Brief]{@src/foo.rs}       ← behavior, scoped to one file
+:mode plan                                  ← harness state, never reaches the model
+/commit                                     ← alias, expands to [Commit]
 ```
 
-- **Status:** Draft v0.4
+- **Status:** Draft v0.4.1
 - **Transport:** compatible with the `SKILL.md` / agentskills.io layout — Cue is a
   *composition and scoping layer*, not a replacement for it.
 - **Harness-agnostic:** the spec is designed for any agent harness with a pre-model-call
@@ -41,15 +45,18 @@ it). `[...]` shapes what the model does or sees. `/` is discovery sugar.
 ## The headline feature
 
 Every harness today has *skills* (whole-body, global) and `@`-file injection
-(content, no behavior). **Cue is the only system that attaches *behavior* to a
-*specific injected chunk*:**
+(content, no behavior). Cue makes scopes first-class (`{@file}` works alone) and
+adds the thing no existing system has: **behavior attached to a specific injected
+chunk:**
 
 ```
-[Answer: Technical]{@src/foo.rs}
-[Answer: Human]{@src/bar.rs}
+{@src/config.rs}                         ← passive context, no wrapper needed
+[Answer: Technical]{@src/foo.rs}         ← technical lens on this file
+[Answer: Human]{@src/bar.rs}             ← human lens on this file
 ```
 
 Two files, two lenses, zero ambiguity. No "applies to everything downstream."
+And `{@src/config.rs}` works on its own when you just need the content.
 
 Composition and scoping compose:
 
@@ -95,6 +102,8 @@ harness patterns (2025-2026):
   state transitions instead of a monolithic input interceptor
 - **Harness-agnostic framing** — all docs reference generic hook patterns, not
   Claude Code's `UserPromptSubmit` specifically
+- **First-class scopes** — `{@file}` works without a `[...]` wrapper; scopes are
+  independent statements, not nested modifiers on cues
 
 ---
 

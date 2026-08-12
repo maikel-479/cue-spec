@@ -1,5 +1,20 @@
 # Changelog
 
+## v0.4.1 (August 2026)
+
+### First-class scopes
+
+- **Scopes are independent statements** — `{@file}`, `{#id}`, `{$last}` work without
+  a `[...]` wrapper; they are first-class constructs in the grammar
+- **Scope-only = passive injection** — no behavioral framing, content injected as
+  reference material; augment by default, fails safe
+- **Scoped cues unchanged** — `[Element: Tag]{@scope}` still works as before; the
+  scope attaches behavioral framing to the content chunk
+- **Updated grammar** — BNF now shows `<statement> ::= <cue> | <scope>`, not just
+  `<directive> ::= "[" ... <scope> ... "]"`
+- **Updated dispatch pipeline** — scanner produces both cue and scope-only items;
+  coalescer only groups cues; resolver handles both paths independently
+
 ## v0.4 (August 2026)
 
 ### Spec overhaul — harness-agnostic, research-grounded
