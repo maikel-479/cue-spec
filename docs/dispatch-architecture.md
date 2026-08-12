@@ -8,21 +8,41 @@ syntax hiding requires a hook with prompt-rewriting capability.
 ## Pipeline
 
 ```
-stdin → [scanner] → [coalescer] → [resolver] → [substitutor] → [injector] → output
-                 ↓                       ↓                       ↓
-            [harness router]   (scope-only → passive inject)  (class: harness → native handler)
+stdin → [alias-expander] → [scanner] → [coalescer] → [resolver] → [substitutor] → [injector] → output
+                          ↓              ↓                       ↓                       ↓
+                    [alias table]  [harness router]   (scope-only → passive inject)  (class: harness → native handler)
 ```
 
-Each stage has a single responsibility. Changes to one stage don't cascade. The
-scanner produces both cue directives and scope-only directives; the coalescer only
-groups cues; the resolver handles both paths.
+Each stage has a single responsibility. Changes to one stage don't cascade.
+The alias expander runs first, turning `/name` shortcuts into full Cue
+directives. The scanner then processes both cue and scope-only items. The
+coalescer only groups cues; the resolver handles both paths.
 
 ## Stages
+
+### Alias expander
+Runs at message ingress, before the scanner. Checks message-initial `/command`
+forms against the alias table (loaded from `~/.pi/aliases.toml` or project
+`cue.toml`). Replaces each alias with its target Cue directive.
+
+The alias table maps short names to full Cue expressions:
+
+```toml
+# ~/.pi/aliases.toml
+commit = "[Commit]{@git, tone: concise}"
+review = "[Review: Technical]{@code, depth: high}"
+```
+
+Expansion is pure string substitution — no Cue semantics are evaluated at this
+stage. The scanner receives the expanded text and processes it like any other
+input.
+
+If an alias is unregistered, the expander reports an error and stops.
 
 ### Scanner
 Runs once at message ingress (the pre-model-call hook). Finds every `[...]`
 directive and every `{...}` scope anywhere in the message — position-agnostic.
-Also checks the message-initial character for `:` (system nav) and `/` (alias).
+Also checks the message-initial character for `:` (system nav).
 
 The scanner produces two kinds of parsed items:
 - **Cues:** `[Element: Tag]{@scope}` — behavioral directives with optional scope
@@ -73,6 +93,40 @@ referenced chunk's slot, not globally.
 ### Harness router
 Intercepts `class: harness` directives and runs native handlers. `[Mode: Plan]` never
 touches the model.
+
+## Skill + Cue integration
+
+Skills and cues are orthogonal concerns that compose:
+
+| Concern | Defines | Example |
+|---|---|---|
+| **Skill** | What the agent can do | `commit` skill provides git tools and instructions |
+| **Cue** | How the agent behaves | `[Commit]{@git, tone: concise}` constrains output style |
+
+The dispatcher resolves both independently:
+1. **Skills** are discovered from `~/.agents/skills/` (Pi's existing discovery)
+2. **Cues** are resolved from the active cue directives (Cue layer adds this)
+3. **Both** are injected into the system prompt — skills give capabilities,
+   cues give behavioral constraints
+
+Aliases bridge the two. An alias maps a short `/name` to a full Cue directive
+that specifies both the element (which may correlate with a skill) and the
+behavioral constraints:
+
+```toml
+# Alias binds skill capability to cue behavior
+commit = "[Commit]{@git, tone: concise}"
+#     ↑ element name        ↑ scope + behavioral tags
+```
+
+When `/commit` expands:
+- The `commit` skill provides git tools and commit instructions
+- The `[Commit]` cue constrains the output style (concise, conventional)
+- The `@git` scope limits the cue to git-related context
+
+They don't replace each other. A skill without cues still works — it just
+uses defaults. A cue without skills is behavioral instructions with no
+capabilities to constrain.
 
 ## Hard rules
 

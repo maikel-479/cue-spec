@@ -20,7 +20,7 @@ Cues add behavioral framing: `[Answer: Technical]{@src/foo.rs}`.
 /commit                                     ← alias, expands to [Commit]
 ```
 
-- **Status:** Draft v0.4.1
+- **Status:** Draft v0.4.2
 - **Transport:** compatible with the `SKILL.md` / agentskills.io layout — Cue is a
   *composition and scoping layer*, not a replacement for it.
 - **Harness-agnostic:** the spec is designed for any agent harness with a pre-model-call
@@ -35,10 +35,12 @@ Cues add behavioral framing: `[Answer: Technical]{@src/foo.rs}`.
 |---|---|---|---|---|
 | **Cue** | `[Element: Tag > Tag]` | Content & behavior — model *or* harness | Yes, via `>` and `{}` | Inline, anywhere |
 | **System nav** | `:command arg` | Pure harness/UI state | Chainable via `;` | Message-initial only |
-| **Alias** | `/command` | Sugar that expands to a Cue | Inherits Cue's | Message-initial only |
+| **Alias** | `/command` → `[Cue]` | Config-defined shortcut to a Cue | Inherits Cue's | Message-initial only |
 
 The split is the point. `:` terminates entirely inside the harness (model never sees
-it). `[...]` shapes what the model does or sees. `/` is discovery sugar.
+it). `[...]` shapes what the model does or sees. `/` is a config mapping — it expands
+to a Cue before the scanner runs. Aliases bridge skills and cues: the skill provides
+capabilities, the cue constrains behavior, the alias binds them in a short name.
 
 ---
 
@@ -81,6 +83,16 @@ things no existing system has: **deterministic tag composition** and **content-s
 behavior**.
 
 ---
+
+## What's new in v0.4.2
+
+- **Alias ↔ skill ↔ cue integration clarified** — aliases are config mappings
+  that bridge installed skills (`~/.agents/skills/`) and behavioral cues
+  (`[Element: Tag]`). Skills define capabilities, cues constrain behavior,
+  aliases bind them in a short name.
+- **Alias expansion stage in dispatch pipeline** — aliases expand to full Cue
+  directives before the scanner runs, then inherit Cue's composition and
+  scoping.
 
 ## What's new in v0.4
 

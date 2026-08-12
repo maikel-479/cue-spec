@@ -1,5 +1,28 @@
 # Changelog
 
+## v0.4.2 (August 2026)
+
+### Alias ↔ skill ↔ cue integration
+
+- **Aliases are config mappings**, not a separate tier — they live in
+  `~/.pi/aliases.toml` or project `cue.toml`, mapping short `/name` to full
+  Cue expressions
+- **Skills and cues are orthogonal** — skills define capabilities (tools,
+  instructions), cues define behavior (tone, length, constraints). Aliases
+  bridge them.
+- **Alias expansion stage added to dispatch pipeline** — `/name` expands to a
+  Cue directive before the scanner runs, then inherits Cue's composition and
+  scoping
+
+### Documentation updates
+
+- `docs/grammar.md` — expanded alias tier section with skill/cue integration
+  explanation and resolution semantics
+- `docs/dispatch-architecture.md` — added alias expander stage to pipeline,
+  added skill+cue integration section with capability matrix
+- `README.md` — updated three-tier table to show aliases as config mappings,
+  added v0.4.2 to "What's new"
+
 ## v0.4.1 (August 2026)
 
 ### First-class scopes

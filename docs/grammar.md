@@ -120,8 +120,45 @@ The `;` chains pure system commands in one line. It is *not* the `>` operator �
 /commit
 ```
 
-Expands to `[Commit]` before dispatch. Discovery sugar for content-affecting
-directives; inherits Cue's composition and scoping once resolved.
+Expands to a Cue directive before dispatch. Aliases are **user-defined
+shortcuts** — not a separate tier, just a mapping layer. They live in
+configuration (`~/.pi/aliases.toml` or project `cue.toml`), not in the grammar
+itself. The grammar defines the `/command` form; the mapping is configuration.
+
+### How aliases bridge skills and cues
+
+Skills and cues are orthogonal:
+- **Skills** define *what* an agent can do (capabilities, tools, instructions)
+- **Cues** define *how* the agent behaves (tone, length, depth, constraints)
+
+Aliases bind them together:
+
+```toml
+# ~/.pi/aliases.toml
+commit = "[Commit]{@git, tone: concise, style: conventional}"
+review = "[Review: Technical]{@code, depth: high}"
+explain = "[Explain]{@docs, length: brief}"
+```
+
+When you type `/commit`:
+1. Alias expands to `[Commit]{@git, tone: concise, style: conventional}`
+2. The skill (`commit`) provides git tools and commit instructions
+3. The cue (`[Commit]{@git, tone: concise}`) constrains the output style
+4. Both get injected into the system prompt for that turn
+
+The skill is what the agent CAN do. The cue is HOW it does it. The alias is the
+shorthand that binds them.
+
+### Resolution
+
+Alias expansion happens **before** the scanner runs. The dispatcher checks
+message-initial `/command`, looks up the alias, and replaces it with the
+target Cue. From that point, the scanner processes it like any other Cue
+directive — inheriting composition, scoping, and all behavioral dimensions.
+
+If the alias target includes a scope (`{@git}`), the dispatcher resolves it
+the same way as a scoped cue. If it targets an unregistered element, the
+dispatcher reports the error the same way as an unregistered cue.
 
 ## Exclusion zones
 
