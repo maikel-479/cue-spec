@@ -25,6 +25,19 @@ Runs at message ingress, before the scanner. Checks message-initial `/command`
 forms against the alias table (loaded from `~/.pi/aliases.toml` or project
 `cue.toml`). Replaces each alias with its target Cue directive.
 
+**Precedence:** Built-in slash commands (`/help`, `/compact`, `/model`, etc.)
+take precedence over Cue aliases. The expander only runs after Pi's command
+parser has checked for built-ins. This means:
+
+| Input | Handler | Outcome |
+|---|---|---|
+| `/compact` | Pi built-in | Handled by Pi, alias expander never sees it |
+| `/commit` | Cue alias | Pi has no built-in, alias expander resolves it |
+| `/unknown` | Neither | Error: "Unknown command" |
+
+If a user defines an alias with the same name as a built-in, the alias is
+silently ignored (or warned at load time). Built-ins are never shadowed.
+
 The alias table maps short names to full Cue expressions:
 
 ```toml
@@ -55,7 +68,19 @@ one directive with merged tags (left-to-right by first appearance). See
 [elements-and-tags.md](elements-and-tags.md) § Same-element multi-occurrence
 coalescing.
 
-Scope-only directives do not coalesce — each `{@file}` is an independent injection.
+For scope-only directives: deduplicates by **content hash**. If two scope-only
+items resolve to identical content (same file, same glob match, same marked
+block), the second is silently dropped. This prevents wasting context budget on
+duplicate injections:
+
+```
+{@src/foo.rs}
+{@src/foo.rs}
+```
+
+→ One injection, not two. The hash is computed after scope resolution (file
+content, not path), so `{@src/foo.rs}` and `{@src/bar.rs}` with identical
+content are also deduped.
 
 ### Resolver
 For each parsed item:
@@ -191,6 +216,33 @@ the agent's **turn lifecycle** to re-evaluate active directives each turn:
 
 This makes Cue turn-aware and responsive to the agent lifecycle, rather than a
 static pre-processor.
+
+### Multi-turn cue persistence
+
+Cues are **per-turn by default**. They do not persist across turns. If you type
+`[Answer: Technical]` on turn 1, turn 2 starts with no active cues. The
+`beforeTurn` hook re-evaluates cues from the current message, not from session
+state.
+
+**Exception:** session-level defaults. The user can set a persistent cue via:
+
+```
+:default [Answer: Technical]
+```
+
+This persists until changed or cleared. But this is explicit — no implicit
+persistence.
+
+**Rationale:** implicit persistence is a footgun. If a user types
+`[Answer: Technical]` to review code, they don't want turn 3 (a casual
+question) to still be in "technical" mode. Explicit persistence via `:default`
+gives control without surprises.
+
+| Mechanism | Persistence | Use case |
+|---|---|---|
+| `[Element: Tag]` | Current turn only | One-off behavioral adjustment |
+| `:default [Element: Tag]` | Session-wide until changed | Persistent preference |
+| `onCompaction` | Clears all active cues | Fresh start after context reset |
 
 ## Agent-invokability
 

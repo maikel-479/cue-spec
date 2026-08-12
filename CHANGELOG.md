@@ -14,6 +14,23 @@
   Cue directive before the scanner runs, then inherits Cue's composition and
   scoping
 
+### Grammar fixes
+
+- **{#id} mark syntax specified** — standalone `{#id}` on its own line marks
+  the next content block; `{#id}` inside `[...]` references the marked block.
+  Disambiguation is positional.
+- **Transform requires scope** — elements with `class: transform` must have an
+  explicit scope. Without a scope, the directive is invalid.
+
+### Behavioral contracts
+
+- **Multi-turn cue persistence** — cues are per-turn by default, do not
+  persist across turns. `:default [Element: Tag]` sets session-wide persistence.
+- **Scope-only deduplication** — identical scope-only directives are deduped
+  by content hash in the coalescer, preventing duplicate context injection.
+- **Slash command precedence** — built-in slash commands (`/help`, `/compact`,
+  etc.) take precedence over Cue aliases. Aliases never shadow built-ins.
+
 ### Documentation updates
 
 - `docs/grammar.md` — expanded alias tier section with skill/cue integration

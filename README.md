@@ -93,6 +93,17 @@ behavior**.
 - **Alias expansion stage in dispatch pipeline** — aliases expand to full Cue
   directives before the scanner runs, then inherit Cue's composition and
   scoping.
+- **{#id} mark syntax specified** — standalone `{#id}` marks the next content
+  block; inside `[...]` it references the marked block. Positional
+  disambiguation.
+- **Transform requires scope** — `class: transform` elements must have an
+  explicit scope. Without one, the directive is invalid.
+- **Multi-turn cue persistence** — cues are per-turn by default. `:default`
+  sets session-wide persistence.
+- **Scope-only deduplication** — identical scope-only directives deduped by
+  content hash, preventing duplicate context injection.
+- **Slash command precedence** — built-in slash commands take precedence over
+  Cue aliases. Aliases never shadow built-ins.
 
 ## What's new in v0.4
 

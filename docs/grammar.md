@@ -6,7 +6,7 @@ authoritative syntax reference.
 ## BNF
 
 ```bnf
-<statement>   ::= <cue> | <scope> | <sysnav> | <alias>
+<statement>   ::= <cue> | <scope> | <mark> | <sysnav> | <alias>
 
 <cue>         ::= "[" <element> [ ":" <tag-chain> ] [ <scope> ] "]"
 <tag-chain>   ::= <tag> { ">" <tag> }
@@ -15,6 +15,8 @@ authoritative syntax reference.
 
 <scope>       ::= "{" <reference> "}"
 <reference>   ::= "@" <path> | "#" <id> | "$last" | <glob>
+
+<mark>        ::= "{" "#" <id> "}"
 
 <sysnav>      ::= ":" <command> { <arg> } { ";" <sysnav> }
 <alias>       ::= "/" <command>
@@ -88,6 +90,25 @@ framing is applied.
 | `{#id}` | inject the marked block's content |
 | `{$last}` | inject the most recent tool/fetch result |
 | `{@glob}` | inject every matching file's content |
+
+### Marking blocks with {#id}
+
+Blocks are marked using a standalone `{#id}` on its own line. The mark labels
+the following content block:
+
+```
+{#my-block}
+This is the content I want to reference later.
+
+[Answer: Technical]{#my-block}
+Explain this code.
+```
+
+The `{#id}` on its own line **marks** the next content block. The `{#id}`
+inside a `[...]` directive **references** the marked block. Disambiguation is
+positional: standalone = mark, inside `[...]` = reference.
+
+Marks are invisible to the model — they're structural labels, not content.
 
 Scope-only directives compose with cues in the same message:
 
@@ -188,6 +209,12 @@ boundary.
 | `:exit` mid-sentence | Not parsed (colon is message-initial only) |
 | `[Foo]` where `Foo` unregistered | "Element 'Foo' not defined" |
 | `[Answer: Telepathic]` | "Tag 'Telepathic' not defined for Answer" |
+| `[Translate]` (no scope) | "Transform requires a scope — use `[Translate]{@path}`" |
+
+**Transform scope requirement:** Elements with `class: transform` must have a
+scope. Transforms consume input and replace it — without a scope, there's
+nothing to consume. `class: model` elements (behavioral framing) work without
+scopes via the "next content block" rule; transforms are explicit.
 
 ## Naming rules
 
