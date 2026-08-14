@@ -1,1 +1,2 @@
-.env
+node_modules/
+docs/scope-implementation-guide.md

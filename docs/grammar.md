@@ -14,7 +14,9 @@ authoritative syntax reference.
 <tag>         ::= identifier
 
 <scope>       ::= "{" <reference> "}"
-<reference>   ::= "@" <path> | "#" <id> | "$last" | <glob>
+<reference>   ::= "@" <path> [ ":" <line-range> ] | "#" <id> | <glob>
+
+<line-range>  ::= <start> "-" <end> | <start> "-" | "-" <end> | <start>
 
 <mark>        ::= "{" "#" <id> "}"
 
@@ -75,7 +77,6 @@ next directive or end of message.
 ```
 {@src/foo.rs}
 {#id}
-{$last}
 {@src/**/*.rs}
 ```
 
@@ -87,8 +88,8 @@ framing is applied.
 | Form | Meaning |
 |---|---|
 | `{@path}` | inject the file's content |
+| `{@path:10-20}` | inject lines 10-20 of the file |
 | `{#id}` | inject the marked block's content |
-| `{$last}` | inject the most recent tool/fetch result |
 | `{@glob}` | inject every matching file's content |
 
 ### Marking blocks with {#id}
@@ -105,8 +106,21 @@ Explain this code.
 ```
 
 The `{#id}` on its own line **marks** the next content block. The `{#id}`
-inside a `[...]` directive **references** the marked block. Disambiguation is
-positional: standalone = mark, inside `[...]` = reference.
+inside a `[...]` directive **references** the marked block. A `{#id}` as
+scope-only (on its own line, not inside `[...]`) also **references** the
+marked block.
+
+| Position | Behavior |
+|---|---|
+| `{#id}` on its own line, NOT inside `[...]` | **Marks** the next content block |
+| `{#id}` inside `[...]` | **References** the marked block |
+| `{#id}` as scope-only, on its own line | **References** the marked block |
+
+The marked block extends **until the next directive** — `{#id}`, `[Element: ...]`,
+`:command`, `/alias`, or end of message.
+
+References can appear **before or after** marks. The dispatcher uses two-pass
+scanning: first pass collects all marks, second pass resolves all references.
 
 Marks are invisible to the model — they're structural labels, not content.
 
@@ -210,6 +224,8 @@ boundary.
 | `[Foo]` where `Foo` unregistered | "Element 'Foo' not defined" |
 | `[Answer: Telepathic]` | "Tag 'Telepathic' not defined for Answer" |
 | `[Translate]` (no scope) | "Transform requires a scope — use `[Translate]{@path}`" |
+| `[Answer]{#undefined}` | "Mark '#undefined' not found" |
+| `{#dup} ... {#dup}` | "Mark '#dup' defined multiple times" |
 
 **Transform scope requirement:** Elements with `class: transform` must have a
 scope. Transforms consume input and replace it — without a scope, there's
