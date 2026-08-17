@@ -10,7 +10,6 @@ of "how to behave?"
 
 ```
 {@src/foo.rs}
-{#id}
 {@src/**/*.rs}
 ```
 
@@ -18,7 +17,7 @@ Injects the referenced content as passive context. The model sees the content an
 decides based on surrounding context. No behavioral framing is applied.
 
 This is how `@`-file injection already works in every harness — Cue scopes extend
-it with globs, line ranges, and id references.
+it with globs and line ranges.
 
 ### Scoped cue (behavior + content)
 
@@ -34,7 +33,7 @@ Attaches behavioral framing to a specific content chunk. The cue provides the
 
 ```
 <scope>       ::= "{" <reference> "}"
-<reference>   ::= "@" <path> [ ":" <line-range> ] | "#" <id> | <glob>
+<reference>   ::= "@" <path> [ ":" <line-range> ] | <glob>
 
 <line-range>  ::= <start> "-" <end>
                 | <start> "-"
@@ -52,7 +51,6 @@ Attaches behavioral framing to a specific content chunk. The cue provides the
 | `{@path:10-20}` | inject lines 10 through 20 (inclusive) |
 | `{@path:10-}` | inject from line 10 to end of file |
 | `{@path:-20}` | inject first 20 lines |
-| `{#id}` | inject the marked block's content |
 | `{@glob}` | inject every matching file's content |
 
 ### Line ranges
@@ -68,7 +66,7 @@ Line ranges are 1-indexed and inclusive. They work with all file scopes:
 
 ```typescript
 export interface ScopeRef {
-  type: "file" | "id" | "glob";
+  type: "file" | "glob";
   value: string;
   lineRange?: { start?: number; end?: number };
 }
@@ -257,128 +255,3 @@ definition. Users do not write `:augment` or `:replace` suffixes.
 `augment` is the default because it **fails safe** — it never deletes user content,
 only adds framing. `replace` requires explicit opt-in via `class: transform`. This
 is a deliberate engineering choice: a destructive mode must be explicit.
-
-## Marked blocks: {#id}
-
-Marks are structural labels for content blocks within a message. They enable
-referencing inline content without file paths.
-
-### Marking
-
-A `{#id}` on its own line (not inside `[...]`) **marks** the following content
-block:
-
-```
-{#my-block}
-This is the content I want to reference later.
-
-[Answer: Technical]{#my-block}
-Explain this code.
-```
-
-The marked block extends **until the next directive** — `{#id}`, `[Element: ...]`,
-`:command`, `/alias`, or end of message.
-
-### Referencing
-
-A `{#id}` inside a `[...]` directive **references** the marked block:
-
-```
-[Answer: Technical]{#my-block}
-```
-
-A `{#id}` as scope-only (on its own line, not inside `[...]`) also references the
-marked block:
-
-```
-{#my-block}
-```
-
-### Disambiguation
-
-| Position | Behavior |
-|---|---|
-| `{#id}` on its own line, NOT inside `[...]` | **Marks** the next content block |
-| `{#id}` inside `[...]` | **References** the marked block |
-| `{#id}` as scope-only, on its own line | **References** the marked block |
-
-### Reference order
-
-References can appear **before or after** marks. The dispatcher uses two-pass
-scanning:
-
-1. **First pass:** collect all marks and their content blocks
-2. **Second pass:** resolve all references
-
-```
-[Answer: Technical]{#my-block}    ← reference (resolved in pass 2)
-Explain this code.
-
-{#my-block}                        ← mark (collected in pass 1)
-fn main() { ... }
-```
-
-### Multiple references
-
-Multiple cues can reference the same mark:
-
-```
-{#snippet}
-fn main() { ... }
-
-[Answer: Technical]{#snippet}
-Explain technically.
-
-[Answer: Human]{#snippet}
-Explain simply.
-```
-
-Both cues inject the same content block, with different behavioral framing.
-
-### Scope-only reference
-
-A standalone `{#id}` on its own line injects the marked block as passive context:
-
-```
-{#config}
-[key]
-value = "default"
-
-{#config}
-```
-
-Second `{#config}` injects the config content without behavioral framing.
-
-### Exclusion zones
-
-Marks inside fenced code blocks (` ``` ` or ` ~~~ `) and inline code spans are
-**ignored**. Only standalone `{#id}` on its own line is treated as a mark.
-
-```
-This is NOT a mark: `{#snippet}`
-
-```code
-# This is NOT a mark either
-```
-```
-
-### Validation
-
-| Condition | Behavior |
-|---|---|
-| Reference to undefined mark | Error: "Mark '{#id}' not found" |
-| Duplicate mark (same id) | Error: "Mark '{#id}' defined multiple times" |
-| Mark with empty content block | Warning: "Mark '{#id}' has no content block" |
-
-### Types
-
-```typescript
-export interface ScopeRef {
-  type: "file" | "id" | "glob";
-  value: string;
-  lineRange?: { start?: number; end?: number };
-}
-
-// When type is "id", value is the mark identifier
-// Example: {#my-block} → { type: "id", value: "my-block" }
-```

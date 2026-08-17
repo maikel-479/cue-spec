@@ -5,7 +5,9 @@
 ### Scope system finalized
 
 - **Removed `{$last}` from v1** — tool-result injection deferred to v2; scopes
-  now only support file paths, globs, and marked blocks
+  now only support file paths and globs
+- **Removed `{#id}` from v1** — inline block marking broken for pasted content
+  in terminal harnesses; deferred to v2 with harness paste-storage redesign
 - **Line range syntax** — `{@path:start-end}` for slicing file content by line
   numbers (1-indexed, inclusive). Supports single line, range, open-ended, and
   first-N forms
@@ -13,14 +15,6 @@
 - **Content format** — raw content with `--- path ---` header; no code block wrapping
 - **Glob limits** — default 50 files per glob, configurable via
   `[cue] max-glob-files` in `cue.toml`
-- **{#id} disambiguation** — standalone on own line = mark, inside `[...]` =
-  reference, scope-only on own line = reference
-- **{#id} block boundary** — marked block extends until next directive
-  (`{#id}`, `[...]`, `:`, `/`, or EOF)
-- **{#id} two-pass scanning** — references can appear before or after marks;
-  first pass collects marks, second pass resolves references
-- **{#id} validation** — undefined reference = error, duplicate mark = error,
-  empty mark = warning
 - **Scope-only deduplication** — identical scope-only directives deduped by
   content hash (hash resolved content, not path)
 
